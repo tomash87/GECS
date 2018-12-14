@@ -1,0 +1,22 @@
+<obj_direction>
+<obj_function>
+
+subject to
+<constraints>
+
+end
+
+<obj_direction>     ::= min | max
+<obj_function>      ::= | <lin_exp> | <quad_exp> / 2 | <lin_exp> + <quad_exp> / 2
+<constraints>       ::= | <constraint> <constraints>
+<constraint>        ::= <constraint_left><constraint_right>
+<constraint_left>   ::= <lin_exp> | <quad_exp> | <lin_exp> + <quad_exp>
+<constraint_right>  ::= <cmp> <real_number>
+<lin_exp>           ::= <real_number> <var> + <lin_exp> | <real_number> <var>
+<quad_exp>          ::= [ <quad_exp_int> ]
+<quad_exp_int>      ::= <real_number> <var> ^ 2 + <quad_exp_int> | <real_number> <var> ^ 2
+<var>               ::= x<var_idx>
+<var_idx>           ::= GE_RANGE:dataset_n_vars
+<cmp>               ::= <= | = | >=
+<real_number>       ::= -<n><n><n>.<n><n><n> | <n><n><n>.<n><n><n>
+<n>                 ::= GE_RANGE:9

@@ -1,0 +1,83 @@
+<constraint_list>
+
+<constraint_list>::= <constraint> |
+                   <constraint_list> ' and '' <constraint> |
+                   'forall ' <idxset> ':' <constraint_list> |
+                   'if ' <lexpr> ' then ' <constraint_list> ' end ' |
+                   'if ' <lexpr> ' then ' <constraint_list> ' else ' <constraint_list> ' end '
+
+<constraint>     ::= <vexpr> <con_type> <vexpr> <con_attr_list> |
+                     <vexpr> <con_type> <cexpr> <con_attr_list> |
+                     <cexpr> <con_type> <vexpr> <con_attr_list> |
+                     <cexpr> <con_type> <cexpr> <con_attr_list> |
+                     <cexpr> <con_type> <vexpr> ' <= ' <cexpr> <con_attr_list> |
+                     <cexpr> <con_type> <cexpr> ' <= ' <cexpr> <con_attr_list> |
+                     <cexpr> <con_type> <vexpr> ' >= ' <cexpr> <con_attr_list> |
+                     <cexpr> <con_type> <cexpr> ' >= ' <cexpr> <con_attr_list> |
+                     'vif ' <vbool> ' then ' <vexpr> <con_type> <vexpr> ' else ' <vexpr> <con_type> <vexpr> ' end' <con_attr_list> |
+                     'vif ' <vbool> ' then ' <cexpr> <con_type> <vexpr> ' else ' <vexpr> <con_type> <vexpr> ' end' <con_attr_list> |
+                     'vif ' <vbool> ' then ' <vexpr> <con_type> <cexpr> ' else ' <vexpr> <con_type> <vexpr> ' end' <con_attr_list> |
+                     'vif ' <vbool> ' then ' <vexpr> <con_type> <vexpr> ' else ' <cexpr> <con_type> <vexpr> ' end' <con_attr_list> |
+                     'vif ' <vbool> ' then ' <vexpr> <con_type> <vexpr> ' else ' <vexpr> <con_type> <cexpr> ' end' <con_attr_list> |
+                     'vif ' <vbool> ' then ' <cexpr> <con_type> <vexpr> ' else ' <cexpr> <con_type> <vexpr> ' end' <con_attr_list> |
+                     'vif ' <vbool> ' then ' <cexpr> <con_type> <vexpr> ' else ' <vexpr> <con_type> <cexpr> ' end' <con_attr_list> |
+                     'vif ' <vbool> ' then ' <vexpr> <con_type> <cexpr> ' else ' <cexpr> <con_type> <vexpr> ' end' <con_attr_list> |
+                     'vif ' <vbool> ' then ' <vexpr> <con_type> <cexpr> ' else ' <vexpr> <con_type> <cexpr> ' end' <con_attr_list> |
+                     'vif ' <vbool> ' then ' <vexpr> <con_type> <vexpr> ' end' <con_attr_list> |
+                     'vif ' <vbool> ' then ' <cexpr> <con_type> <vexpr> ' end' <con_attr_list> |
+                     'vif ' <vbool> ' then ' <vexpr> <con_type> <cexpr> ' end' <con_attr_list>
+
+<vbool>         ::= <vexpr> ' != ' <vexpr> |
+                    <cexpr> ' != ' <vexpr> |
+                    <vexpr> ' != ' <cexpr> |
+                    <vexpr> ' == ' <vexpr> |
+                    <cexpr> ' == ' <vexpr> |
+                    <vexpr> ' == ' <cexpr> |
+                    <vexpr> ' <= ' <vexpr> |
+                    <cexpr> ' <= ' <vexpr> |
+                    <vexpr> ' <= ' <cexpr> |
+                    <vexpr> ' >= ' <vexpr> |
+                    <cexpr> ' >= ' <vexpr> |
+                    <vexpr> ' >= ' <cexpr> |
+                    <vexpr> ' < ' <vexpr> |
+                    <cexpr> ' < ' <vexpr> |
+                    <vexpr> ' < ' <cexpr> |
+                    <vexpr> ' > ' <vexpr> |
+                    <cexpr> ' > ' <vexpr> |
+                    <vexpr> ' > ' <cexpr> |
+                    <vbool> ' and ' <vbool> |
+                    <vbool> ' or ' <vbool> |
+                    <vbool> ' xor ' <vbool> |
+                    ' not ' <vbool> |
+                    '(' <vbool> ')'
+
+<con_attr_list>  ::= |
+                     <con_attr_list> ',' <con_attr>
+
+<con_attr>       ::= ' scale ' | ' separate ' | ' checkonly ' | ' indicator '
+
+<con_type>       ::= ' <= ' | ' >= ' | ' == '
+
+<vexpr>          ::= <vproduct> |
+                     <vexpr> ' + ' <vproduct> |
+                     <vexpr> ' - ' <vproduct> |
+                     <vexpr> ' + ' <cproduct> |
+                     <vexpr> ' - ' <cproduct> |
+                     <cexpr> ' + ' <vproduct> |
+                     <cexpr> ' - ' <vproduct>
+
+<vproduct>       ::= <vfactor> |
+                     <vproduct> ' * ' <cfactor> |
+                     <vproduct> ' / ' <cfactor> |
+                     <cproduct> ' * ' <vfactor> |
+                     <vproduct> ' * ' <vfactor>
+
+<vfactor>        ::= <vexpo> |
+                     ' + ' <vfactor> |
+                     ' - ' <vfactor>
+
+<vexpo>          ::= <vval> |
+                     <vval> '**' <cfactor> |
+                     'sum' <idxset> ':' <vproduct>
+
+<vval>           ::= # TODO

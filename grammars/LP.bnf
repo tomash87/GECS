@@ -1,0 +1,18 @@
+<obj_direction>
+<obj_function>
+
+subject to
+<constraints>
+
+end
+
+<obj_direction>     ::= min | max
+<obj_function>      ::= | <lin_exp>
+<constraints>       ::= | <constraint> <constraints>
+<constraint>        ::= <lin_exp> <cmp> <real_number>
+<lin_exp>           ::= <real_number> <var> + <lin_exp> | <real_number> <var>
+<var>               ::= x<var_idx>
+<var_idx>           ::= GE_RANGE:dataset_n_vars
+<cmp>               ::= <= | = | >=
+<real_number>       ::= -<n><n><n>.<n><n><n> | <n><n><n>.<n><n><n>
+<n>                 ::= GE_RANGE:9

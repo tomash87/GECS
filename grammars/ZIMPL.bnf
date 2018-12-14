@@ -1,0 +1,113 @@
+<subto>
+
+<subto>        ::= 'subto name_seq:' <constraint_list> ';\n' | 'subto name_seq:' <constraint_list> ';\n' <subto>
+
+<constraint_list>::= <constraint> |
+                  <constraint_list> ' and ' <constraint> |
+                  'forall ' <pure_idxset> ':' <constraint_list> |
+                  'if ' <lexpr> ' then ' <constraint_list> ' end ' |
+                  'if ' <lexpr> ' then ' <constraint_list> ' else ' <constraint_list> ' end '
+
+<constraint>   ::= <vexpr> <con_type> <cexpr> |
+                   <cexpr> ' <= ' <vexpr> ' <= ' <cexpr> |
+                   'vif ' <vbool> ' then ' <vexpr> <con_type> <cexpr> <vif_else> ' end'
+
+<vif_else>     ::= '' | ' else ' <vexpr> <con_type> <cexpr>
+
+<vbool>        ::= <vexpr> <cmp_type> <cexpr> |
+                   <vbool> <bool_op> <vbool> |
+                   'not ' <vbool> |
+                   '(' <vbool> ')'
+
+<cmp_type>      ::= '!=' | '==' | '<=' | '>=' | '<' | '>'
+<bool_op>       ::= ' and ' | ' or ' | ' xor '
+
+<con_type>      ::= ' <= ' | ' >= ' | ' == '
+
+<vexpr>         ::= <vproduct> |
+                    <vexpr> ' + ' <vproduct> |
+                    <vexpr> ' - ' <vproduct>
+
+<vproduct>      ::= <vexpo> |
+                    <cexpr> ' * ' <vexpo>
+
+<vexpo>         ::= <vval> |
+                    'sum ' <pure_idxset> ':' <vexpo>
+
+<vval>          ::= 'VAR'<var_idx><symidx> |
+                    'if ' <lexpr> ' then ' <vexpr> ' else ' <vexpr> ' end' |
+                    'vabs(' <vexpr> ')'
+
+<var_idx>       ::= GE_RANGE:dataset_n_vars
+
+<idxset>        ::= <pure_idxset> | <sexpr>
+
+<pure_idxset>   ::= '<' <tmp_var_list> '> in ' <sexpr> ' with ' <lexpr> |
+                    '<' <tmp_var_list> '> in ' <sexpr>
+
+<sexpr>         ::= <sunion> |
+                    <sexpr> ' + ' <sunion> |
+                    <sexpr> ' symdiff ' <sunion>
+                    <sexpr> ' \\ ' <sunion> |
+                    <sexpr> ' inter ' <sunion>
+
+<sunion>        ::= <sproduct> |
+                    ' union ' <pure_idxset> ':' <sproduct>
+
+<sproduct>      ::= <sval> |
+                    <sproduct> ' * ' <sval> |
+                    ' inter ' <pure_idxset> ':' <sval>
+
+<sval>          ::= 'SET'<setsym_idx><symidx> |
+                    '{' <cexpr> ' to ' <cexpr> ' by ' <cexpr> '}' |
+                    '{' <cexpr> ' to ' <cexpr> '}' |
+                    #'{' <cexpr> ' until ' <cexpr> ' by ' <cexpr> '}' |
+                    #'{' <cexpr> ' until ' <cexpr> '}' |
+                    'argmin' <pure_idxset> ':' <cexpr> '}' |
+                    'argmin(' <cexpr> ')' <pure_idxset> ':' <cexpr> |
+                    'argmax' <pure_idxset> ':' <cexpr> '}' |
+                    'argmax(' <cexpr> ')' <pure_idxset> ':' <cexpr> |
+                    '{' <sexpr> '}' |
+                    '{' <tuple_list> '}' |
+                    '{' <cexpr_list> '}' |
+                    '{' <idxset> '}' |
+                    '{' <idxset> ':' <cexpr> '}' |
+                    '{' <idxset> ': <' <cexpr_list> '>}' |
+                    'proj(' <sexpr> ', <' <cexpr_list> '>)' |
+                    'indexset(SET' <setsym_idx> ')' |
+                    'if ' <lexpr> ' then ' <sexpr> ' else ' <sexpr> ' end'
+
+<setsym_idx>    ::= GE_RANGE:dataset_n_is
+
+<lexpr>         ::= <sexpr> <cmp_type> <sexpr> |
+                    <sexpr> <cmp_type> ' {}' |
+                    <lexpr> <bool_op> <lexpr> |
+                    'not ' <lexpr> |
+                    '(' <lexpr> ')' |
+                    '<' <cexpr_list> '> in ' <sexpr> |
+                    'exists(' <idxset> ')' |
+                    'if ' <lexpr> ' then ' <lexpr> ' else ' <lexpr> ' end'
+
+<tuple_list>    ::= '<' <cexpr_list> '>' |
+                    <tuple_list> ', <' <cexpr_list> '>'
+
+<symidx>        ::= '' | '[' <tmp_var_list> ']'
+
+<cexpr_list>    ::= <cexpr> | <cexpr_list> ',' <cexpr>
+
+<cexpr>         ::= <integer> |
+                    <real_number> |
+                    'PARAM'<param_idx><symidx> |
+                    <tmp_var> |
+                    'card(' <sexpr> ')'
+
+<tmp_var>       ::= 'i' | 'j' | 'k'
+
+<tmp_var_list>  ::= <tmp_var> |
+                    <tmp_var_list> ',' <tmp_var>
+
+<param_idx>     ::= GE_RANGE:dataset_n_os
+
+<real_number>   ::= -<n>.<n> | <n>.<n>
+<integer>       ::= '-9' | '-8' | '-7' | '-6' | '-5' | '-4' | '-3' | '-2' | '-1' | '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9'
+<n>             ::= GE_RANGE:9

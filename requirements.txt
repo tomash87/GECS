@@ -1,3 +1,5 @@
+gurobipy
+psutil
 numpy
 scipy
 matplotlib
