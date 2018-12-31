@@ -2,13 +2,16 @@
 #
 # Generic formulation of the Travelling Salesmen Problem
 #
-set V   := { read "tsp.dat" as "<1s>" comment "#" };
+#set V   := { read "tsp.dat" as "<1s>" comment "#" };
+set V   := {"Sylt", "Flensburg", "Neumunster", "Husum", "Schleswig", "Ausacker", "Rendsburg", "Lubeck", "Westerland", "Segeberg"};
 set E   := { <i,j> in V * V with i < j };
 set P[] := powerset(V \ { ord(V,1,1) });
 set K   := indexset(P) \ { 0 };
 
-param px[V] := read "tsp.dat" as "<1s> 2n" comment "#";
-param py[V] := read "tsp.dat" as "<1s> 3n" comment "#";
+#param px[V] := read "tsp.dat" as "<1s> 2n" comment "#";
+#param py[V] := read "tsp.dat" as "<1s> 3n" comment "#";
+param px[V]  := <"Sylt"> 1, <"Flensburg"> 3, <"Neumunster"> 2, <"Husum"> 1, <"Schleswig"> 3, <"Ausacker"> 2, <"Rendsburg"> 1, <"Lubeck"> 4, <"Westerland"> 0, <"Segeberg"> 2;
+param py[V]  := <"Sylt"> 1, <"Flensburg"> 1, <"Neumunster"> 2, <"Husum"> 3, <"Schleswig"> 3, <"Ausacker"> 4, <"Rendsburg"> 4, <"Lubeck"> 4, <"Westerland"> 1, <"Segeberg"> 3;
 
 defnumb dist(a,b) := sqrt((px[a] - px[b])^2 + (py[a] - py[b])^2);
 
@@ -26,8 +29,3 @@ subto no_subtour:
    forall <k> in K with card(P[k]) > 2 and card(P[k]) < card(V) - 2 do
       sum <i,j> in E with <i> in P[k] and <j> in P[k] : x[i,j] 
       <= card(P[k]) - 1;
-
-
-
-
-

@@ -30,6 +30,7 @@
 #include <assert.h>
 
 #include <gmp.h>
+#include <unistd.h>
 
 #include "zimpl/lint.h"
 #include "zimpl/mshell.h"
@@ -75,95 +76,6 @@ struct symbol
    Symbol*      next;
 };
 
-/*static int set_cardinality(Set* set) {
-   int card;
-   Tuple* tuple;
-   SetIter* iter = set_iter_init(set, NULL);
-   while(NULL != (tuple = set_iter_next(iter, set)))
-      ++card;
-   set_iter_exit(iter, set);
-   return card;
-}
-
-static const int set_compare(Set* set_a, Set* set_b)
-{
-   Tuple* tuple;
-   SetIter* iter;
-   int card_a = 0, card_b = 0;
-   int equal = 0;
-
-   iter = set_iter_init(set_a, NULL);
-   while(NULL != (tuple = set_iter_next(iter, set_a)))
-   {
-      ++card_a;
-      if (set_lookup(set_b, tuple))
-      {
-         ++equal;
-      }
-      tuple_free(tuple);
-   }
-   set_iter_exit(iter, set_a);
-
-   card_b = set_cardinality(set_b);
-
-   if (equal == card_a && equal == card_b)
-      return SET_EQUAL;
-   if (equal == card_a && card_a < card_b)
-      return SET_SUBSET;
-   if (equal == card_b && card_a > card_b)
-      return SET_SUPERSET;
-   return SET_DIFFERENT;
-}
-
-static enum SET_RELATION is_symbol_indexed_by_set(const Symbol* symbol, const Set* other_set, const int dimension)
-{
-    for(int i = 0; i < symbol->used; i++)
-    {
-       const Tuple* tuple = entry_get_tuple(symbol->entry[i]);
-
-       int dim = tuple_get_dim(tuple);
-       assert(dimension < dim);
-       // const Elem* elem = tuple_get_elem(tuple, dimension);
-       if (set_lookup_idx(other_set, tuple, dimension) == -1)
-           return SET_DIFFERENT;
-    }
-
-    int card = set_cardinality(other_set);
-    if (symbol->used == card)
-        return SET_EQUAL;
-    if (symbol->used < card)
-        return SET_SUPERSET;
-    assert(false);
-    return SET_DIFFERENT;
-}
-
-static const char** find_set_names_for_indexes(Symbol* symbol)
-{
-   const Tuple* tuple;
-   const Tuple* other_tuple;
-   const char** names = malloc(sizeof(char*)*symbol->set->head.dim);
-
-
-   for(const Symbol* other_sym = symbol_get_all(); other_sym != NULL; other_sym = other_sym->next)
-   {
-      if (other_sym->type == SYM_SET)
-      {
-         for (int other_index = 0; other_index < other_sym->used; ++other_index) {
-            other_tuple = entry_get_tuple(other_sym->entry[other_index]);
-            const Set* other_set = tuple_get_set(other_tuple);
-
-            for (int dimension = 0; dimension < symbol->set->head.dim; ++dimension) {
-               enum SET_RELATION relation = is_symbol_indexed_by_set(symbol, other_set, dimension);
-               if (relation == SET_EQUAL || (relation == SET_SUPERSET && names[dimension] == NULL)) {
-                  names[dimension] = other_sym->name;
-               }
-            }
-         }
-      }
-   }
-
-   return names;
-}*/
 
 static char* symbol_get_index_types(const Symbol* sym) {
     const Tuple* tuple;
@@ -235,23 +147,17 @@ static char* symbol_get_value_types(const Symbol* sym) {
     return types;
 }
 
-static void write_name(FILE* fp, const char* name)
+static void write_name(FILE* fp, const char* name, int var_number)
 {
-   const char* s         = name;
-   
    assert(fp   != NULL);
    assert(name != NULL);
 
-   fprintf(fp, "%s", s);
+   // fprintf(fp, "%s", s);
 
-   /*while(*s != '\0')
-   {
-	  if (IN('a', *s, 'z') || IN('A', *s, 'Z') || IN ('0', *s, '9'))
-		 fputc(*s, fp);
-	  else
-	  	 fputc('_', fp);
-      s++;
-   }*/
+   char* tmp_name = (char*)malloc(sizeof(char)*100);
+   lps_makename(tmp_name, 100, name, var_number);
+   fprintf(fp, "%s", tmp_name);
+   free((void*)tmp_name);
 }
 
 static void write_lhs(FILE* fp, const Con* con, ConType type)
@@ -324,14 +230,14 @@ static void write_row(
       else
       {
          /*lint -e(634) Strong type mismatch (type 'Bool') in equality or conditional */
-         if (mpq_sgn(nzo->value) > 0)
+         if (mpq_sgn(nzo->value) >= 0)
             fprintf(fp, "+");
          
          mpq_out_str(fp, 10, nzo->value);
 		 fprintf(fp, "*");
       }
 	  fprintf(fp, "_['");
-      write_name(fp, nzo->var->name);
+      write_name(fp, nzo->var->name, nzo->var->number);
 	  fprintf(fp, "']");      
    }
 }
@@ -355,10 +261,12 @@ void py_write(
 
    //if (text != NULL)
    //   fprintf(fp, "%s\n", text);
-   
+
+   fprintf(fp, "import numpy as np\n");
+
    // class
    fprintf(fp, "class ");
-   write_name(fp, strip_path(strip_extension(lp->name)));
+   write_name(fp, strip_path(strip_extension(lp->name)), -1);
    fprintf(fp, ":\n");
    // init
    fprintf(fp, "\tdef __init__(self):\n");
@@ -377,7 +285,7 @@ void py_write(
       if (var->type == VAR_FIXED)
       {
 		 fprintf(fp, "'");
-         write_name(fp, var->name);
+         write_name(fp, var->name, var->number);
          fprintf(fp, "': ('R', ");
          mpq_out_str(fp, 10, var->lower);
 		 fprintf(fp, ", ");
@@ -386,7 +294,7 @@ void py_write(
       else
       {
 		 fprintf(fp, "'");
-		 write_name(fp, var->name);
+		 write_name(fp, var->name, var->number);
 		 fprintf(fp, "': ('%s', ", var->vclass == VAR_INT ? "Z" : "R");
 		 
          if (var->type == VAR_LOWER || var->type == VAR_BOXED)
@@ -412,7 +320,7 @@ void py_write(
          const Tuple *tuple;
 
          fprintf(fp, "'");
-         write_name(fp, sym->name);
+         write_name(fp, sym->name, -1);
 
          int value_arity = sym->used > 0 ? entry_get_set(sym->entry[0])->head.dim : -1;
          const char* indexes = symbol_get_index_types(sym);
@@ -429,7 +337,7 @@ void py_write(
    for(sym = symbol_get_all(); sym != NULL; sym = sym->next) {
       if (sym->type == SYM_VAR && strcmp(sym->name, "@@") != 0) {
          fprintf(fp, "'");
-         write_name(fp, sym->name);
+         write_name(fp, sym->name, -1);
 
          const char* indexes = symbol_get_index_types(sym);
          fprintf(fp, "': {'arity': %d, 'arg_types': '%s'},\n\t\t\t", sym->set->head.dim, indexes);
@@ -443,7 +351,7 @@ void py_write(
    for(sym = symbol_get_all(); sym != NULL; sym = sym->next) {
       if (sym->type == SYM_STRG || sym->type == SYM_NUMB) {
          fprintf(fp, "'");
-         write_name(fp, sym->name);
+         write_name(fp, sym->name, -1);
 
          const char* indexes = symbol_get_index_types(sym);
          fprintf(fp, "': {'arity': %d, 'arg_types': '%s'},\n\t\t\t", sym->set->head.dim, indexes);
@@ -479,7 +387,7 @@ void py_write(
 		 fprintf(fp, "*");
       }
 	  fprintf(fp, "_[\"");
-	  write_name(fp, var->name);
+	  write_name(fp, var->name, var->number);
 	  fprintf(fp, "\"]");
 	  objective_empty = false;
    }
@@ -489,19 +397,22 @@ void py_write(
    
    // constraints
    fprintf(fp, "\tdef constraints(self, _):\n");
-   fprintf(fp, "\t\treturn \\\n");
+   fprintf(fp, "\t\tout = ");
 
+   int con_printed = 0;
    for(con = lp->con_root; con != NULL; con = con->next)
    {
       if (con->size == 0)
          continue;
 
-      fprintf(fp, "\t\t\t(");
+      ++con_printed;
+
+      fprintf(fp, "(");
       write_lhs(fp, con, con->type);
       write_row(fp, con);
       write_rhs(fp, con, con->type);
 	  
-	  fprintf(fp, ") & \\\n");
+	  fprintf(fp, ")\n\t\tout = out & ");
 	  //write_name(fp, con->name);
    }
    
@@ -513,13 +424,15 @@ void py_write(
 
       for(sos = lp->sos_root; sos != NULL; sos = sos->next)
       {
-         fprintf(fp, "\t\t\t(");
+         ++con_printed;
+
+         fprintf(fp, "(");
          for(sse = sos->first; sse != NULL; sse = sse->next)
          {
 			fprintf(fp, "int(");
 		    mpq_out_str(fp, 10, sse->weight);
 			fprintf(fp, " * _['");
-            write_name(fp, sse->var->name);
+            write_name(fp, sse->var->name, sse->var->number);
 			fprintf(fp, "'] != 0)");
         
 			if (sse->next != NULL)
@@ -535,11 +448,11 @@ void py_write(
 	 			fprintf(fp, "int(");
 	 		    mpq_out_str(fp, 10, sse->weight);
 	 			fprintf(fp, "*_['");
-	            write_name(fp, sse->var->name);
+	            write_name(fp, sse->var->name, sse->var->number);
 	 			fprintf(fp, "'] != ");
 	 		    mpq_out_str(fp, 10, sse->next->weight);
 	 			fprintf(fp, "*_['");
-	            write_name(fp, sse->next->var->name);
+	            write_name(fp, sse->next->var->name, sse->next->var->number);
 				fprintf(fp, "'])");
         
 	 			if (sse->next->next != NULL)
@@ -548,12 +461,17 @@ void py_write(
 			 fprintf(fp, " <= 2");
 		 }
 		 
-		 fprintf(fp, ") & \\\n");
+		 fprintf(fp, ")\n\t\tout = out & ");
 		 //sos->name
       }
    }
-
-   fprintf(fp, "\t\t\t((_==_).any(axis=1) if _.shape is not None else True)\n");
+   if (con_printed == 0)
+       fprintf(fp, "(np.full((_.shape[0]), True) if hasattr(_, 'shape') else True)\n\t\t");
+   else {
+      fseek(fp, -12, SEEK_CUR);
+      ftruncate(fileno(fp), ftell(fp));
+   }
+   fprintf(fp, "return out\n");
 
 }   
 

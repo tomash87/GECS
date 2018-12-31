@@ -13,10 +13,10 @@ var x[E] binary;
 
 minimize cost: sum <a,b> in E : c[a,b] * x[a,b];
 
-### END OF TEMPLATE ###
-
 set P[] := powerset(V);
 set I   := indexset(P);
+
+### END OF TEMPLATE ###
 
 # If we partition V and there is a Terminal in both parts, there has
 # to be at least one edge to connect them.
