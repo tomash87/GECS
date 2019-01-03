@@ -275,7 +275,7 @@ class DatabaseEngine:
         self.__connection = sqlite3.connect(database_file, 60.0, isolation_level="DEFERRED")
         self.__connection.row_factory = sqlite3.Row
         self.__cursor = self.__connection.cursor()
-        self.__cursor.execute("PRAGMA busy_timeout = %d" % (1 << 31))
+        self.__cursor.execute("PRAGMA busy_timeout = %d" % (1 << 30))
         # disable foreign key support when filling database due to:
         # 1) performance,
         # 2) ON DELETE clause in foreign key definition, which causes deletions in iterations table when user requires replacement of a tuple in experiment table

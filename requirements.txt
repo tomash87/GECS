@@ -6,3 +6,5 @@ matplotlib
 pandas
 scikit-learn
 cython
+sortedcontainers
+filelock

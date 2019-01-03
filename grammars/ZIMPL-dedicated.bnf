@@ -45,7 +45,7 @@
 <constr2_%(at)s>        ::=<sum_%(at)s> <cmp> <cexpr0_%(at)s>                                                   # (= ({"at": at} for a, at in type_range(1, 2) if set_seq_exists(at, 1) and any(set_exists(at, t, 1 + (at == t)) and var_exists(at+t) for va, t in type_range(1, 2))) =)
 <constr2_%(at)s>        ::=<sum_%(at)s> <arithmetic_op> <sum_or_var_%(at)s> <cmp> <cexpr0_%(at)s>               # (= ({"at": at} for a, at in type_range(1, 2) if set_seq_exists(at, 1) and any(set_exists(at, t, 1 + (at == t)) and var_exists(at+t) for va, t in type_range(1, 2))) =)
 <constr2_%(at)s>        ::=<lexpr_%(at)s> <cmp> <cexpr0_%(at)s>                                                 # (= ({"at": at} for a, at in type_range(1, 2) if set_seq_exists(at, 1) and var_exists(at)) =)
-<constr2_%(at)s>        ::=<vabs_%(at)s> <cmp> <cexpr_%(at)s>                                                   # (= ({"at": at} for a, at in type_range(1, 2) if set_seq_exists(at, 1) and (var_exists(at, 2) or len(at) >= 2)) =)
+<constr2_%(at)s>        ::=<vabs_%(at)s> <cmp> <cexpr_%(at)s>                                                   # (= ({"at": at} for a, at in type_range(1, 2) if set_seq_exists(at, 1) and (var_exists(at, 2) or var_exists(at) and len(at) >= 2)) =)
 <constr2_%(at)s>        ::=<vif_%(at)s>                                                                         # (= ({"at": at} for a, at in type_range(1, 2) if set_seq_exists(at, 1) and var_exists(at, domain='Z') and any(set_exists(at, t, 1 + (at == t)) and var_exists(at+t) for va, t in type_range(1, 2))) =)
 
 <constr3_%(at)s>        ::=<lexpr_%(at)s> <cmp> <cexpr0_%(at)s>                                                 # (= ({"at": at} for a, at in type_range(2, 4) if set_seq_exists(at, 2) and var_exists(at)) =)
@@ -56,14 +56,14 @@
 <sum_or_var_%(at)s>     ::=<coeff_var_%(at)s>                                                                   # (= ({"at": at} for a, at in type_range(1, 2) if set_seq_exists(at, 1) and var_exists(at)) =)
 
 <lexpr_%(at)s>          ::=<coeff_var_%(at)s>                                                                   # (= ({"at": at} for a, at in type_range(1, 4) if set_seq_exists(at, 2) and var_exists(at)) =)
-<lexpr_%(at)s>          ::=<coeff_var_%(at)s> <arithmetic_op> <coeff_var_%(at)s>                                # (= ({"at": at} for a, at in type_range(1, 4) if set_seq_exists(at, 2) and (var_exists(at, 2) or len(at) >= 2)) =)
+<lexpr_%(at)s>          ::=<coeff_var_%(at)s> <arithmetic_op> <coeff_var_%(at)s>                                # (= ({"at": at} for a, at in type_range(1, 4) if set_seq_exists(at, 2) and (var_exists(at, 2) or var_exists(at) and len(at) >= 2)) =)
 <coeff_var_%(at)s>      ::=<variable_%(at)s>                                                                    # (= ({"at": at} for a, at in type_range(1, 4) if set_seq_exists(at, 2) and var_exists(at)) =)
 <coeff_var_%(at)s>      ::=<cexpr_%(at)s> '*' <variable_%(at)s>                                                 # (= ({"at": at} for a, at in type_range(1, 4) if set_seq_exists(at, 2) and var_exists(at)) =)
 
-<vabs_%(at)s>           ::='vabs('<vexpr_%(at)s>')'                                                             # (= ({"at": at} for a, at in type_range(1, 2) if set_seq_exists(at, 2) and (var_exists(at, 2) or len(at) >= 2)) =)
-<vabs_%(at)s>           ::='vabs(vabs('<vexpr_%(at)s>') - '<abs_%(at)s>')'                                      # (= ({"at": at} for a, at in type_range(1, 2) if set_seq_exists(at, 2) and (var_exists(at, 2) or len(at) >= 2) and at.count("N") >= 2) =)
-<vexpr_%(at)s>          ::= <variable_%(at)s> <arithmetic_op> <variable_%(at)s>                                 # (= ({"at": at} for a, at in type_range(1, 2) if set_seq_exists(at, 2) and (var_exists(at, 2) or len(at) >= 2)) =)
-<abs_%(at)s>            ::='abs('<tmpvN_%(at)s> '-' <tmpvN_%(at)s>')'                                           # (= ({"at": at} for a, at in type_range(1, 2) if set_seq_exists(at, 2) and (var_exists(at, 2) or len(at) >= 2) and at.count("N") >= 2) =)
+<vabs_%(at)s>           ::='vabs('<vexpr_%(at)s>')'                                                             # (= ({"at": at} for a, at in type_range(1, 2) if set_seq_exists(at, 2) and (var_exists(at, 2) or var_exists(at) and len(at) >= 2)) =)
+<vabs_%(at)s>           ::='vabs(vabs('<vexpr_%(at)s>') - '<abs_%(at)s>')'                                      # (= ({"at": at} for a, at in type_range(1, 2) if set_seq_exists(at, 2) and (var_exists(at, 2) or var_exists(at) and len(at) >= 2) and at.count("N") >= 2) =)
+<vexpr_%(at)s>          ::= <variable_%(at)s> <arithmetic_op> <variable_%(at)s>                                 # (= ({"at": at} for a, at in type_range(1, 2) if set_seq_exists(at, 2) and (var_exists(at, 2) or var_exists(at) and len(at) >= 2)) =)
+<abs_%(at)s>            ::='abs('<tmpvN_%(at)s> '-' <tmpvN_%(at)s>')'                                           # (= ({"at": at} for a, at in type_range(1, 2) if set_seq_exists(at, 2) and (var_exists(at, 2) or var_exists(at) and len(at) >= 2) and at.count("N") >= 2) =)
 
 <vif_%(at)s>            ::='vif' <variableZ_%(at)s> '==' <const0> 'then' <sum_simpl_%(at)s> <cmp> <cexpr0_%(at)s> 'end' # (= ({"at": at} for a, at in type_range(1, 2) if set_seq_exists(at, 2) and var_exists(at, domain='Z') and rule_exists("<sum_simpl_%s>" % at)) =)
 

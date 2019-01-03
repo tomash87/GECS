@@ -5,3 +5,14 @@ results/
 Banknote.csv
 Banknote_shuf.csv
 .idea/
+datasets/ZIMPL/*.log
+*.csv.bz2
+datasets/ZIMPL/*.lp
+*.tbl
+datasets/ZIMPL/*.csv
+ZIMPL-dedicated-*.bnf
+grammars/ZIMPL-analysis.txt
+src/fitness/helper.cpython-37m-darwin.so
+src/utilities/ZIMPL/bin/
+src/utilities/ZIMPL/lib/
+src/utilities/ZIMPL/obj/

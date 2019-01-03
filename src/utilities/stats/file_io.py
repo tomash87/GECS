@@ -137,7 +137,7 @@ def generate_folders_and_files():
 
     # Generate save folders
     if not path.isdir(params['FILE_PATH']):
-        makedirs(params['FILE_PATH'])
+        makedirs(params['FILE_PATH'], exist_ok=True)
 
     if not path.isdir(path.join(params['FILE_PATH'],
                                 str(params['TIME_STAMP']))):

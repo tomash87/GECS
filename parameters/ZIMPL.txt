@@ -27,5 +27,8 @@ REPLACEMENT:            generational
 SELECTION:              tournament
 TOURNAMENT_SIZE:        3
 VERBOSE:                True
-SAVE_ALL:               True
+SAVE_ALL:               False
 EXPERIMENT_DATABASE:    ../results/results.sqlite
+EXTRA_PARAMETERS:
+EXPERIMENT_NAME:        test
+RANDOM_SEED:            0

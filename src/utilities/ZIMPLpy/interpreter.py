@@ -22,19 +22,21 @@ class Interpreter:
 
     def __init__(self, zpl_filename, unlink_files=True):
         working_dir = os.path.dirname(zpl_filename)
-        py_process = Popen([Interpreter.zimpl_path, "-v0", "-tpy", zpl_filename], cwd=working_dir, stderr=PIPE)
-        lp_process = Popen([Interpreter.zimpl_path, "-v0", "-l99", "-tlp", zpl_filename], cwd=working_dir, stderr=PIPE)
-
-        Interpreter.gurobi_env.setParam(GRB.Param.LogToConsole, 0)
         name_noext = Interpreter.zpl_regex.sub(r"", zpl_filename)
         self.py_filename = name_noext + ".py"
         self.lp_filename = name_noext + ".lp"
+        zpl_mtime = os.path.getmtime(zpl_filename)
+
+        py_process = Popen([Interpreter.zimpl_path, "-v0", "-tpy", zpl_filename], cwd=working_dir, stderr=PIPE) if not os.path.exists(self.py_filename) or zpl_mtime > os.path.getmtime(self.py_filename) else None
+        lp_process = Popen([Interpreter.zimpl_path, "-v0", "-l99", "-tlp", zpl_filename], cwd=working_dir, stderr=PIPE) if not os.path.exists(self.lp_filename) or zpl_mtime > os.path.getmtime(self.lp_filename) else None
+
         self.unlink_files = unlink_files
 
-        py_exit_code = py_process.wait()
-        py_stderr = str(py_process.stderr.read().decode("utf-8"))
-        if py_exit_code != 0 or len(py_stderr) > 0:
-            raise ValueError("Error in ZIMPL program. Exit code: %d.\n%s" % (py_exit_code, py_stderr))
+        if py_process is not None:
+            py_exit_code = py_process.wait()
+            py_stderr = str(py_process.stderr.read().decode("utf-8"))
+            if py_exit_code != 0 or len(py_stderr) > 0:
+                raise ValueError("Error in ZIMPL program. Exit code: %d.\n%s" % (py_exit_code, py_stderr))
 
         try:
             module = runpy.run_path(self.py_filename, run_name=__name__)
@@ -46,11 +48,12 @@ class Interpreter:
 
         self.vars = [v for v in self.program.variables.keys() if not v.startswith("__")]  # omit auxiliary variables
 
-        lp_exit_code = lp_process.wait()
-        lp_stderr = str(lp_process.stderr.read().decode("utf-8"))
-        if lp_exit_code != 0 or len(lp_stderr) > 0:
-            # print(lp_stderr)
-            raise ValueError("Error in ZIMPL program. Exit code: %d.\n%s" % (lp_exit_code, lp_stderr))
+        if lp_process is not None:
+            lp_exit_code = lp_process.wait()
+            lp_stderr = str(lp_process.stderr.read().decode("utf-8"))
+            if lp_exit_code != 0 or len(lp_stderr) > 0:
+                # print(lp_stderr)
+                raise ValueError("Error in ZIMPL program. Exit code: %d.\n%s" % (lp_exit_code, lp_stderr))
 
     def sample(self, n: int, positive_only: bool = True, class_column: bool = False) -> pd.DataFrame:
         vars = self.vars
@@ -270,23 +273,9 @@ class Interpreter:
         return p
 
     def generate_grammar(self):
-        # with open(self.zpl_filename) as f:
-        #     prefix = f.read()
-        # prefix = re.sub(r'#+\sEND\sOF\sTEMPLATE\s#+.*$', "", prefix, flags=re.I | re.S)
-        # prefix = prefix.replace("'", "\\'")
-        # prefix = "\n".join("'%s'" % line for line in prefix.split("\n"))
-        # prefix = "<predefined>\t::=" + prefix
-
         with open(os.path.dirname(__file__) + "/../../../grammars/ZIMPL-dedicated.bnf", "rt") as f:
             grammar = f.read()
         grammar = self.filter_grammar(grammar)
-        # productions = self.generate_productions_for_symbol("variable", self.program.vardefs)
-        # grammar += "".join(productions)
-        # productions = self.generate_productions_for_set("set", self.program.sets, 2)
-        # grammar += "".join(productions)
-        # productions = self.generate_productions_for_symbol("param", self.program.params)
-        # grammar += "".join(productions)
-
         return grammar
 
     def filter_grammar(self, grammar: str) -> str:
@@ -350,3 +339,7 @@ class Interpreter:
                     os.unlink(file)
                 except:
                     pass
+
+
+Interpreter.gurobi_env.setParam(GRB.Param.LogToConsole, 0)
+Interpreter.gurobi_env.setParam(GRB.Param.Threads, 1)

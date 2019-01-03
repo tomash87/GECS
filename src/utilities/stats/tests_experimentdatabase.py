@@ -1,9 +1,10 @@
-import os
+import os, sys
 import tempfile
 import time
 import unittest
 from sqlite3 import ProgrammingError
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from experimentdatabase import DataSet
 from experimentdatabase import Database
 from experimentdatabase import DatabaseException
