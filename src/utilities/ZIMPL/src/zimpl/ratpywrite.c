@@ -340,7 +340,7 @@ void py_write(
          write_name(fp, sym->name, -1);
 
          const char* indexes = symbol_get_index_types(sym);
-         fprintf(fp, "': {'arity': %d, 'arg_types': '%s'},\n\t\t\t", sym->set->head.dim, indexes);
+         fprintf(fp, "': {'arity': %d, 'arg_types': '%s', 'domain': '%c'},\n\t\t\t", sym->set->head.dim, indexes, entry_get_var(sym->entry[0])->vclass == VAR_CON ? 'R' : 'Z');
          free((void*)indexes);
       }
    }

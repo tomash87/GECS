@@ -290,14 +290,16 @@ class Interpreter:
         return grammar
 
     def filter_grammar(self, grammar: str) -> str:
+        output = defaultdict(lambda: [])
+        output_grammar = ""
+
         globals = __import__("itertools", {}, {}, "*").__dict__
         globals["sprod"] = lambda s, r=1: ("".join(p) for p in globals["product"](s, repeat=r))
         globals["spermut"] = lambda s, r=None: ("".join(p) for p in globals["permutations"](s, r=r))
+        globals["rule_exists"] = lambda nonterm: nonterm in output
         globals.update({"sets": self.program.sets, "vardefs": self.program.vardefs, "params": self.program.params})
 
         lines = grammar.split("\n")
-        output = defaultdict(lambda: [])
-        output_grammar = ""
         for lineno, line in enumerate(lines):
             try:
                 code = Interpreter.code_regex.search(line)
@@ -348,16 +350,3 @@ class Interpreter:
                     os.unlink(file)
                 except:
                     pass
-
-
-def mycallback(model, where):
-    if where == GRB.Callback.MIPSOL:
-        x = model.cbGetSolution(model._vars)
-        model._X.append({model._vars[i].varName: round(x[i]) if model._vars[i].VType in "BI" else x[i] for i in range(len(x))})
-        # if len(model._X) >= 100 * model._n:
-        #     print("terminate()")
-        #     model.terminate()
-
-# def count_callback(model, where):
-#     if where == GRB.Callback.MIPSOL:
-#        model._sol_count += 1

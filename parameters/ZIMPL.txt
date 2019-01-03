@@ -2,7 +2,7 @@ PROBLEM:                tsp
 TRAINING_SIZE:          175
 TEST_SIZE:              2000
 CACHE:                  True
-# MUTATE_DUPLICATES:      True
+MUTATE_DUPLICATES:      True
 CODON_SIZE:             10000
 #CROSSOVER:              variable_onepoint
 #CROSSOVER:              fixed_twopoint
@@ -10,13 +10,13 @@ CROSSOVER:              subtree
 CROSSOVER_PROBABILITY:  0.9
 DEBUG:                  False
 GENERATIONS:            60
-MAX_GENOME_LENGTH:      150
+MAX_GENOME_LENGTH:      200
 GRAMMAR_FILE:           ZIMPL-dedicated-tsp.bnf
 INITIALISATION:         PI_grow
 INVALID_SELECTION:      False
 #MIN_INIT_TREE_DEPTH:    4
 MAX_INIT_TREE_DEPTH:    8
-MAX_TREE_DEPTH:         11
+MAX_TREE_DEPTH:         10
 #MUTATION:               int_flip_per_codon
 #MUTATION:               int_flip_per_ind
 MUTATION:               subtree
@@ -28,3 +28,4 @@ SELECTION:              tournament
 TOURNAMENT_SIZE:        3
 VERBOSE:                True
 SAVE_ALL:               True
+EXPERIMENT_DATABASE:    ../results/results.sqlite

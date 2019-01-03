@@ -1,7 +1,9 @@
+import datetime
 import os
 import re
 import sys
 from tempfile import mkstemp
+from traceback import format_tb
 
 import pandas as pd
 import numpy as np
@@ -12,8 +14,10 @@ from fitness.base_ff_classes.base_ff import base_ff
 from representation.individual import Individual
 from stats.stats import stats as statistics
 from utilities.ZIMPLpy.interpreter import Interpreter
-from utilities.stats import file_io
+from utilities.stats import file_io, trackers
 import pyximport
+
+from utilities.stats.experimentdatabase import *
 
 os.environ["CFLAGS"] = "-O3 -march=native"
 pyximport.install(language_level=3, inplace=True)
@@ -24,8 +28,21 @@ import fitness.helper as helper
 class ZIMPL(base_ff):
     debug = params["DEBUG"]
     maximise = True
+    database: Database = None
+    experiment: Experiment = None
+    prev_get_soo_stats = None
 
     def __init__(self):
+        # monkey patching statistics to write formatted programs
+        stats.stats.save_best_ind_to_file = ZIMPL.save_best_ind_to_file
+        # monkey patching statistics to write experiment database
+        if ZIMPL.prev_get_soo_stats is None:
+            ZIMPL.prev_get_soo_stats = stats.stats.get_soo_stats
+            stats.stats.get_soo_stats = ZIMPL.get_soo_stats
+        ZIMPL.init_experimentdatabase()
+        ZIMPL.prev_excepthook = sys.excepthook
+        sys.excepthook = ZIMPL.except_hook
+
         # Initialise base fitness function class.
         super().__init__()
         problem_name = params["PROBLEM"]
@@ -54,9 +71,6 @@ class ZIMPL(base_ff):
 
         statistics["GROUND_TRUTH_TRAINING_FITNESS"] = ZIMPL.fitness(self.training_set, self.ground_truth_interpreter, self.ground_truth_phenotype)
         statistics["GROUND_TRUTH_TEST_FITNESS"] = ZIMPL.fitness(self.test_set, self.ground_truth_interpreter, self.ground_truth_phenotype)
-
-        # monkey patching statistics to write formatted programs
-        stats.stats.save_best_ind_to_file = ZIMPL.save_best_ind_to_file
 
     def load_dataset(self, filename, size):
         set = pd.read_csv(filename, index_col=False, engine='c', na_filter=False, dtype=np.double)
@@ -96,7 +110,8 @@ class ZIMPL(base_ff):
             # if "Error 168" in str(e):
             #     print("program=%s\nerror=%s" % (program, str(e)))
             #     breakpoint()
-            print(e, file=sys.stderr)
+            if "Error 142" not in str(e):
+                print(e, file=sys.stderr)
             ind.runtime_error = True
             return self.default_fitness
         finally:
@@ -177,11 +192,43 @@ class ZIMPL(base_ff):
         file_io.save_best_ind_to_file(_stats, ind, end, name)
         ind.phenotype = prev_phenotype
 
+    @staticmethod
+    def init_experimentdatabase():
+        if ZIMPL.database is not None:
+            return
+        ZIMPL.database = Database(params["EXPERIMENT_DATABASE"])
+        ZIMPL.experiment = ZIMPL.database.new_experiment()
+        ZIMPL.experiment["timestamp"] = str(datetime.datetime.now())
+        ZIMPL.experiment["commandline"] = " ".join(sys.argv)
+        ZIMPL.experiment["problem"] = params["PROBLEM"]
+        for k, v in statistics.items():
+            if k.startswith("GROUND"):
+                ZIMPL.experiment[k] = v
+        parameters = ZIMPL.experiment.new_child_data_set("parameters")
+        parameters.update({str(k): str(v) for k, v in params.items()})
 
-class mydict(dict):
-    def __init__(self, iterable, shape):
-        super(mydict, self).__init__(iterable)
-        self.shape = shape
+    @staticmethod
+    def get_soo_stats(individuals, end):
+        ZIMPL.prev_get_soo_stats(individuals, end)  # calculate statistics
+
+        generation = ZIMPL.experiment.new_child_data_set("generations")
+        generation.update({k: v for k, v in statistics.items() if not k.startswith("GROUND")})
+        generation["best_phenotype"] = params["FITNESS_FUNCTION"].format_program(trackers.best_ever.phenotype)
+        generation["end"] = end
+        if end:
+            ZIMPL.experiment["test_fitness"] = trackers.best_ever.test_fitness
+            ZIMPL.experiment.save(True)
+            ZIMPL.experiment = None
+            ZIMPL.database.__exit__(None, None, None)
+
+    @staticmethod
+    def except_hook(exctype, value, tb):
+        if ZIMPL.experiment is not None:
+            ZIMPL.experiment["error_exctype"] = exctype.__name__
+            ZIMPL.experiment["error_value"] = str(value)
+            ZIMPL.experiment["error_tb"] = "".join(format_tb(tb))
+            ZIMPL.experiment.save()
+        ZIMPL.prev_excepthook(exctype, value, tb)
 
 
 def cast_int(x):

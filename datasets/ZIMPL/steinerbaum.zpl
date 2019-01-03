@@ -27,3 +27,9 @@ subto partition:
                        or (<b> in P[i] and not <a> in P[i]) : x[a,b] >= 1;
 
 # That's it.
+
+#subto partition2:
+#   forall <i> in I with      P[i]  inter T != {}
+#                    and (V \ P[i]) inter T != {} do
+#      sum <a,b> in E with <a> in P[i]
+#                       xor <b> in P[i] : x[a,b] >= 1;

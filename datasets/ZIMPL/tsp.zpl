@@ -29,3 +29,8 @@ subto no_subtour:
    forall <k> in K with card(P[k]) > 2 and card(P[k]) < card(V) - 2 do
       sum <i,j> in E with <i> in P[k] and <j> in P[k] : x[i,j] 
       <= card(P[k]) - 1;
+
+#subto no_subtour2:
+#   forall <k> in K with <card(P[k])> in {3 .. (card(V) - 3)} do
+#      sum <i,j> in E with <i> in P[k] and <j> in P[k] : x[i,j]
+#      <= card(P[k]) - 1;
