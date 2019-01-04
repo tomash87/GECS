@@ -1,4 +1,5 @@
 import abc
+import re
 from collections import OrderedDict
 import copy
 import math
@@ -24,54 +25,66 @@ def normalize_data(db):
     problem_mapping = {}
 
     for (_from, _to) in problem_mapping.items():
-        cursor.execute("UPDATE experiments SET in_problem=:to WHERE in_problem=:from", {"from": _from, "to": _to})
+        cursor.execute("UPDATE experiments SET problem=:to WHERE problem=:from", {"from": _from, "to": _to})
 
-    method_mapping = {}
+    name_mapping = {}
 
-    for (_from, _to) in method_mapping.items():
-        cursor.execute("UPDATE experiments SET in_method=:to WHERE in_method=:from", {"from": _from, "to": _to})
+    for (_from, _to) in name_mapping.items():
+        cursor.execute("UPDATE experiments SET name=:to WHERE name=:from", {"from": _from, "to": _to})
 
-    cursor.execute(r'''CREATE TEMP VIEW IF NOT EXISTS experimentStatistics AS
-                   SELECT *,
-                   SUBSTR(in_problem, 1, LENGTH(in_problem) - 2) AS in_problemDim,
-                   SUBSTR(in_problem, 1, LENGTH(in_problem) - 2) || '-' || in_samples  AS problemDimSamples,
-                   SUBSTR(in_problem, 1, LENGTH(in_problem) - 2) || '-' || (CASE WHEN in_quadratic IS NULL THEN 'linear' WHEN in_quadratic=1 THEN 'polynomial' END) AS in_problemDimInst,
-                   g.bestModelFitness AS trainingFitness,
-                   modelVariableCount - benchmarkVariableCount AS diffModelTermCount,
-                   modelConstraintCount - benchmarkConstraintCount AS diffModelConstraintCount,
-                   syntaxAngle/CAST(MAX(enabledConstraintCount, benchmarkConstraintCount) AS REAL) AS avgAngle,
-                   IFNULL(CAST(modelTestTruePositives AS REAL)/CAST(modelTestTruePositives + modelTestFalseNegatives AS REAL), 0.0) AS testSensitivity,
-                   IFNULL(CAST(modelTestTrueNegatives AS REAL)/CAST(modelTestTrueNegatives + modelTestFalsePositives AS REAL), 0.0) AS testSpecificity,
-                   IFNULL(CAST(modelTestTruePositives + modelTestTrueNegatives AS REAL)/CAST(modelTestTruePositives + modelTestFalsePositives + modelTestFalseNegatives + modelTestTrueNegatives AS REAL), 0.0) AS testAccuracy,
-                   IFNULL(CAST(modelTestTruePositives AS REAL)/CAST(modelTestTruePositives + modelTestFalsePositives AS REAL), 0.0) AS testPrecision,
-                   IFNULL(CAST(2*modelTestTruePositives AS REAL)/CAST(2*modelTestTruePositives + modelTestFalsePositives + modelTestFalseNegatives AS REAL), 0.0) AS testF,
-                   IFNULL(CAST(modelTestTruePositives AS REAL)/(modelTestTruePositives + modelTestFalseNegatives + modelTestFalsePositives), 0.0) AS feasibleJaccard,
-                   IFNULL(CAST(modelTestTrueNegatives AS REAL)/(modelTestTrueNegatives + modelTestFalseNegatives + modelTestFalsePositives), 0.0) AS infeasibleJaccard,
-                   CASE WHEN in_quadratic IS NULL THEN 'linear' WHEN in_quadratic=1 THEN 'polynomial' END AS instruction
-                   FROM experiments e LEFT JOIN generations g ON g.id = (SELECT MAX(id) FROM generations WHERE parent=e.id)''')
+    try:
+        cursor.execute("ALTER TABLE parameters ADD COLUMN PROBLEM NUMERIC NULL")
+        cursor.execute("ALTER TABLE parameters ADD COLUMN TRAINING_SIZE NUMERIC NULL")
+    except:
+        pass
+    cursor.execute("SELECT id, EXTRA_PARAMETERS FROM parameters WHERE PROBLEM IS NULL OR TRAINING_SIZE IS NULL")
+    extra_params_parser = re.compile(r"(?P<param>[a-zA-Z0-9_]+)='?(?P<value>[a-zA-Z0-9_]+)'?")
+    for row in cursor.fetchall():
+        params = dict(extra_params_parser.findall(row[1]))
+        params["id"] = row[0]
+        cursor.execute("UPDATE parameters SET PROBLEM=:PROBLEM, TRAINING_SIZE=:TRAINING_SIZE WHERE id=:id", params)
+    try:
+        cursor.execute("COMMIT")
+    except:
+        pass
+
+
+    cursor.execute(r'''CREATE TEMP VIEW IF NOT EXISTS experimentStat AS
+                       SELECT *
+                       FROM experiments e 
+                       LEFT JOIN parameters p ON e.id = p.parent
+                       LEFT JOIN generations g ON e.id = g.parent
+                       WHERE g.end = 0 
+                       AND e.error_exctype IS NULL''')
+
+    cursor.execute(r'''CREATE TEMP VIEW IF NOT EXISTS experimentFinalStat AS
+                   SELECT * 
+                   FROM experiments e 
+                   LEFT JOIN parameters p ON e.id = p.parent
+                   LEFT JOIN generations g ON e.id = g.parent
+                   WHERE g.end = 1 
+                   AND e.error_exctype IS NULL''')
 
 
 def prepare_indexes(db):
     cursor = db.cursor()
-    cursor.execute("CREATE INDEX IF NOT EXISTS constraintsParent ON constraints(parent)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS variablesParent ON variables(parent)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS generationsParentGeneration ON generations(parent, generation)")
-    # cursor.execute("CREATE INDEX IF NOT EXISTS fitnessParent ON fitness(parent)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS experimentsIn_problemBenchmarkVariableCountIn_samples ON experiments(in_problem, benchmarkVariableCount, in_samples, in_name)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS parametersParentNameProblemTrainingSize ON parameters(parent, EXPERIMENT_NAME, PROBLEM, TRAINING_SIZE)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS generationsParentEnd ON generations(parent, end)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS generationsParentEndTotalTime ON generations(parent, end, TOTAL_TIME)")
     cursor.execute("ANALYZE")
 
 
-def prepare_db(filename="statistics.sqlite"):
+def prepare_db(filename="../results/results.sqlite"):
     start = time.time()
     db = prepare_connection(filename)
-    prepare_indexes(db)
     normalize_data(db)
+    prepare_indexes(db)
     print("Database prepared in %.2fs" % (time.time() - start))
     return db
 
 
 #
-# Prameters for statistical objects
+# Parameters for statistical objects
 #
 
 class ParameterSet:
@@ -110,9 +123,9 @@ defaults.axis = {
     "xmode=": "normal",  # log
     "ymode=": "normal",  # log
     "xmin=": 0,
-    "xmax=": 100,
+    "xmax=": 60,
     "ymin=": 0,
-    "ymax=": 1,
+    "ymax=": None,
     "xtick=": "{}",
     "ytick=": "{}",
 }
@@ -126,8 +139,8 @@ defaults.table = {
     "heatmap": {
         "min": 0.0,
         "max": 1.0,
-        "min_color": "red!90!white",
-        "max_color": "green",
+        "min_color": "red!70!yellow!80!white",
+        "max_color": "green!70!lime",
     },
     "total_row": "ranks",  # Data to put in last row of table; none, ranks
     "number_format": "%.2f",
@@ -141,117 +154,125 @@ defaults.analyzer = {
     "name_suffix": "",
     "ymax_percentile": 99.0,
     "ymax_cf_percentile": 97.5,
-    "best": -1.0E9,  # best value on for a particular criterion (used in ranks) and formatting
+    "best": 1.0E9,  # best value on a particular criterion (used in ranks) and formatting
     "pcritical": None,  # None, or critical probability for which the test is conclusive (test's p-value is less than this value)
-    "novalue": float("nan"), # value inserted in table when query returns none
+    "novalue": float("nan"),  # value inserted in table when query returns none
 }
 
 plot_parameters = {
-    "ball": ParameterSet(),
-    "ball3": ParameterSet(),
-    "ball3-linear": ParameterSet(),
-    "ball3-polynomial": ParameterSet(),
-    "ball4": ParameterSet(),
-    "ball5": ParameterSet(),
-    "ball5-linear": ParameterSet(),
-    "ball5-polynomial": ParameterSet(),
-    "ball6": ParameterSet(),
-    "ball6-linear": ParameterSet(),
-    "ball6-polynomial": ParameterSet(),
-    "ball7": ParameterSet(),
-    "simplex": ParameterSet(),
-    "simplex3": ParameterSet(),
-    "simplex3-linear": ParameterSet(),
-    "simplex3-polynomial": ParameterSet(),
-    "simplex4": ParameterSet(),
-    "simplex5": ParameterSet(),
-    "simplex5-linear": ParameterSet(),
-    "simplex5-polynomial": ParameterSet(),
-    "simplex6": ParameterSet(),
-    "simplex6-linear": ParameterSet(),
-    "simplex6-polynomial": ParameterSet(),
-    "simplex7": ParameterSet(),
-    "cube": ParameterSet(),
-    "cube3": ParameterSet(),
-    "cube3-linear": ParameterSet(),
-    "cube3-polynomial": ParameterSet(),
-    "cube4": ParameterSet(),
-    "cube5": ParameterSet(),
-    "cube5-linear": ParameterSet(),
-    "cube5-polynomial": ParameterSet(),
-    "cube6": ParameterSet(),
-    "cube6-linear": ParameterSet(),
-    "cube6-polynomial": ParameterSet(),
-    "cube7": ParameterSet(),
+    "chvatal_diet": ParameterSet(),
+    "facility_location": ParameterSet(),
+    "queens1": ParameterSet(),
+    "queens2": ParameterSet(),
+    "queens3": ParameterSet(),
+    "queens4": ParameterSet(),
+    "queens5": ParameterSet(),
+    "steinerbaum": ParameterSet(),
+    "tsp": ParameterSet(),
 }
 
 series_parameters = {
-    "E0": ParameterSet({},{
+    "SS": ParameterSet({}, {
         "draw=": "magenta",
         "mark=": "triangle*",
         "mark options=": "{fill=magenta, scale=0.5, solid}",
     }),
-    "E0R": ParameterSet({},{
+    "SI": ParameterSet({}, {
         "draw=": "magenta",
-        "mark=": "diamond*",
-        "dashed": "",
+        "mark=": "asterisk",
         "mark options=": "{fill=magenta, scale=0.5, solid}",
     }),
-    "E1": ParameterSet({},{
+    "SC": ParameterSet({}, {
         "draw=": "magenta",
-        "mark=": "square*",
-        "dotted": "",
+        "mark=": "diamond*",
         "mark options=": "{fill=magenta, scale=0.5, solid}",
     }),
-    "E1R": ParameterSet({},{
+    "V1S": ParameterSet({}, {
         "draw=": "cyan",
+        "dashed": "",
         "mark=": "triangle*",
         "mark options=": "{fill=cyan, scale=0.5, solid}",
     }),
-    "E2": ParameterSet({},{
+    "V1I": ParameterSet({}, {
         "draw=": "cyan",
-        "mark=": "diamond*",
         "dashed": "",
+        "mark=": "asterisk",
         "mark options=": "{fill=cyan, scale=0.5, solid}",
     }),
-    "E2R": ParameterSet({},{
+    "V1C": ParameterSet({}, {
         "draw=": "cyan",
-        "mark=": "square*",
-        "dotted": "",
+        "dashed": "",
+        "mark=": "diamond*",
         "mark options=": "{fill=cyan, scale=0.5, solid}",
     }),
-    "K0": ParameterSet({},{
-        "draw=": "lime",
+    "F2S": ParameterSet({}, {
+        "draw=": "green!80!lime",
+        "densely dotted": "",
         "mark=": "triangle*",
-        "mark options=": "{fill=lime, scale=0.5, solid}",
+        "mark options=": "{fill=green!80!lime, scale=0.5, solid}",
     }),
-    "K0R": ParameterSet({},{
-        "draw=": "lime",
+    "F2I": ParameterSet({}, {
+        "draw=": "green!80!lime",
+        "densely dotted": "",
+        "mark=": "asterisk",
+        "mark options=": "{fill=green!80!lime, scale=0.5, solid}",
+    }),
+    "F2C": ParameterSet({}, {
+        "draw=": "green!80!lime",
+        "densely dotted": "",
         "mark=": "diamond*",
-        "dashed": "",
-        "mark options=": "{fill=lime, scale=0.5, solid}",
+        "mark options=": "{fill=green!80!lime, scale=0.5, solid}",
     }),
-    "K1": ParameterSet({},{
-        "draw=": "lime",
+    "300x3": ParameterSet({}, {
+        "draw=": "magenta",
         "mark=": "triangle*",
-        "mark options=": "{fill=lime, scale=0.5, solid}",
+        "mark options=": "{fill=magenta, scale=0.5, solid}",
     }),
-    "K1R": ParameterSet({},{
-        "draw=": "lime",
+    "300x5": ParameterSet({}, {
+        "draw=": "magenta",
+        "mark=": "asterisk",
+        "mark options=": "{fill=magenta, scale=0.5, solid}",
+    }),
+    "300x7": ParameterSet({}, {
+        "draw=": "magenta",
         "mark=": "diamond*",
-        "dashed": "",
-        "mark options=": "{fill=lime, scale=0.5, solid}",
+        "mark options=": "{fill=magenta, scale=0.5, solid}",
     }),
-    "K2": ParameterSet({},{
-        "draw=": "lime",
+    "500x3": ParameterSet({}, {
+        "draw=": "cyan",
+        "densely dashed": "",
         "mark=": "triangle*",
-        "mark options=": "{fill=lime, scale=0.5, solid}",
+        "mark options=": "{fill=cyan, scale=0.5, solid}",
     }),
-    "K2R": ParameterSet({},{
-        "draw=": "lime",
+    "500x5": ParameterSet({}, {
+        "draw=": "cyan",
+        "densely dashed": "",
+        "mark=": "asterisk",
+        "mark options=": "{fill=cyan, scale=0.5, solid}",
+    }),
+    "500x7": ParameterSet({}, {
+        "draw=": "cyan",
+        "densely dashed": "",
         "mark=": "diamond*",
-        "dashed": "",
-        "mark options=": "{fill=lime, scale=0.5, solid}",
+        "mark options=": "{fill=cyan, scale=0.5, solid}",
+    }),
+    "700x3": ParameterSet({}, {
+        "draw=": "green!80!lime",
+        "densely dotted": "",
+        "mark=": "triangle*",
+        "mark options=": "{fill=green!80!lime, scale=0.5, solid}",
+    }),
+    "700x5": ParameterSet({}, {
+        "draw=": "green!80!lime",
+        "densely dotted": "",
+        "mark=": "asterisk",
+        "mark options=": "{fill=green!80!lime, scale=0.5, solid}",
+    }),
+    "700x7": ParameterSet({}, {
+        "draw=": "green!80!lime",
+        "densely dotted": "",
+        "mark=": "diamond*",
+        "mark options=": "{fill=green!80!lime, scale=0.5, solid}",
     }),
 }
 
@@ -276,7 +297,7 @@ class Statistics:
         params = expand(defaults, self.params)
 
         start = time.time()
-        sys.stdout.write("Quering for %s... " % self.name)
+        sys.stdout.write("Querying for %s... " % self.name)
 
         # execute queries, obtain data
         for plot_id in self.plots:
@@ -315,17 +336,11 @@ class Statistics:
         return None
 
     def format_name_latex(self, name: str):
-        map = { }
+        map = {"chvatal_diet": "diet",
+               "facility_location": "facility"}
 
         if name in map:
             return map[name]
-
-        if name.startswith("simplex"):
-            return "Simp$_%s$" % name[-1:]
-        if name.startswith("cube") or name.startswith("simplex") or name.startswith("ball"):
-            return "%s%s$_%s$" % (name[:1].upper(), name[1:-1], name[-1:])
-        if name[-1:] == 'R':
-            return name[:-1]
 
         return name
 
@@ -355,7 +370,7 @@ class Plot(Statistics):
                \usepackage{pgfplots}
                \usepackage{pgfplotstable}
                \usepackage[margin=0cm, left=0cm, paperwidth=14cm, paperheight=20.5cm]{geometry}
-               \pgfplotsset{width=4.9cm,height=3.9cm,compat=1.5}
+               \pgfplotsset{width=4.9cm,height=3.9cm,compat=1.15}
                \pgfplotsset{every axis/.append style={%
                    font=\scriptsize,%
                    draw=black,%
@@ -490,7 +505,7 @@ class Plot(Statistics):
 
     def get_full_document(self):
         params = expand(defaults, self.params)
-        params = self.params
+        # params = self.params  # HACK: ?
 
         self.legend_printed = False
         out = self.get_preamble()
@@ -518,6 +533,9 @@ class Plot(Statistics):
 
     def calculate_y_max(self, plot_id, params):
         params = expand(params, plot_parameters[plot_id])
+        if "ymax=" in params.axis and params.axis["ymax="] is not None and params.axis["ymax="] != "":
+            return params.axis["ymax="]
+
         values = []
         max_values = []
         for (name, series) in self.plots[plot_id].items():
@@ -556,7 +574,7 @@ class Plot(Statistics):
         return cols
 
     def serialize_data(self, data, params):
-        max_value = (params.axis["ymax="] + 1) * 200.0 if "ymax=" in params.axis else 1000.0
+        max_value = (params.axis["ymax="] + 3) * 1000.0 if "ymax=" in params.axis else 1000.0
         min_value = -max_value
         out = "%(header)s\n" \
               "%(data)s\n" % dict(header="\t".join(data["header"]),
@@ -579,6 +597,7 @@ class Plot(Statistics):
             "8": "eight",
             "9": "nine",
             "-": "hyphen",
+            "_": "lowline",
         }
         return functools.reduce(lambda x, y: x.replace(y, map[y]), map, name)
 
@@ -810,11 +829,11 @@ class Runner:
             params = self.processors[stat.get_processor()]
 
             filename = stat.get_name() + params["extension"]
-            filepath = "output/" + filename
+            filepath = "../output/" + filename
             stat.save(filepath)
             if params["command"] is not None:
                 command_line = [params["command"]] + params["arguments"] + [filename]
-                processes.append(Popen(command_line, cwd="output"))
+                processes.append(Popen(command_line, cwd="../output"))
 
                 # Wait for running processes (prevent creating too many processes at once)
                 while len(processes) >= multiprocessing.cpu_count():
@@ -831,104 +850,136 @@ class Runner:
 queries = {
     "generational_avg":
         r'''SELECT
-                g.generation AS x,
+                gen AS x,
                 AVG(`:criterion`) AS y,
                 AVG(`:criterion`) - 1.959963985 * SQRT((AVG(`:criterion` * `:criterion`) - AVG(`:criterion`) * AVG(`:criterion`))/CAST(COUNT(`:criterion`) AS REAL)) AS yMin,
                 AVG(`:criterion`) + 1.959963985 * SQRT((AVG(`:criterion` * `:criterion`) - AVG(`:criterion`) * AVG(`:criterion`))/CAST(COUNT(`:criterion`) AS REAL)) AS yMax
-            FROM experimentStatistics e
-            JOIN generations g ON e.id=g.parent
+            FROM experimentStat
             WHERE
-                e.in_problemDimInst = :plot_id || '-' || :instruction
-                AND e.in_name = :series
-                AND e.in_samples = 300
-                AND g.generation <= 50
+                EXPERIMENT_NAME = :series
+                AND PROBLEM = :plot_id
+                AND TRAINING_SIZE = 300
             GROUP BY
-                g.generation
+                gen
             ORDER BY
-                g.generation
+                gen
+        ''',
+    "time_avg":
+        r'''SELECT
+                x,
+                AVG(y) AS y,
+                AVG(y) - 1.959963985 * SQRT((AVG(y * y) - AVG(y) * AVG(y))/CAST(COUNT(y) AS REAL)) AS yMin,
+                AVG(y) + 1.959963985 * SQRT((AVG(y * y) - AVG(y) * AVG(y))/CAST(COUNT(y) AS REAL)) AS yMax
+            FROM 
+                (SELECT 
+                    e1.id,
+                    e1.total_time AS x, 
+                    MAX(e2.`:criterion`) AS y  -- last value from e2.`:criterion` (for last generation finished at time e1.total_time)
+                FROM
+                experimentStat e1 CROSS JOIN experimentStat e2
+                WHERE
+                    e1.EXPERIMENT_NAME = :series
+                    AND e1.PROBLEM = :plot_id
+                    AND e1.TRAINING_SIZE = 300
+                    AND e2.EXPERIMENT_NAME = :series
+                    AND e2.PROBLEM = :plot_id
+                    AND e2.TRAINING_SIZE = 300
+                    AND e1.TOTAL_TIME >= e2.TOTAL_TIME
+                GROUP BY
+                    e1.id, e1.gen, e2.id
+                )
+            WHERE x <= 1200
+            GROUP BY
+                id, x
+            HAVING COUNT(*) >= 5
+            ORDER BY
+                x
         ''',
     "final_avg_fixed":
         r'''SELECT
                 AVG(`:criterion`) AS y,
                 AVG(`:criterion`) - 1.959963985 * SQRT((AVG(`:criterion` * `:criterion`) - AVG(`:criterion`) * AVG(`:criterion`))/CAST(COUNT(`:criterion`) AS REAL)) AS yMin,
                 AVG(`:criterion`) + 1.959963985 * SQRT((AVG(`:criterion` * `:criterion`) - AVG(`:criterion`) * AVG(`:criterion`))/CAST(COUNT(`:criterion`) AS REAL)) AS yMax
-            FROM experimentStatistics e
+            FROM experimentFinalStat
             WHERE
-                e.in_problemDim = :plot_id
-                AND e.in_name = :series
-                AND e.in_samples = 300
-                AND e.instruction = :instruction
+                PROBLEM = :plot_id
+                AND EXPERIMENT_NAME = :series
+                AND TRAINING_SIZE = 300
             LIMIT 1
         ''',
     "final_avg":
         r'''SELECT
                 AVG(`:criterion`) AS y,
                 AVG(`:criterion`) - 1.959963985 * SQRT((AVG(`:criterion` * `:criterion`) - AVG(`:criterion`) * AVG(`:criterion`))/CAST(COUNT(`:criterion`) AS REAL)) AS yMin,
-                AVG(`:criterion`) + 1.959963985 * SQRT((AVG(`:criterion` * `:criterion`) - AVG(`:criterion`) * AVG(`:criterion`))/CAST(COUNT(`:criterion`) AS REAL)) AS yMax,
-                1.0 - TTEST(`:criterion`, :mean) AS pValue
-            FROM experimentStatistics e
+                AVG(`:criterion`) + 1.959963985 * SQRT((AVG(`:criterion` * `:criterion`) - AVG(`:criterion`) * AVG(`:criterion`))/CAST(COUNT(`:criterion`) AS REAL)) AS yMax
+                --TTEST(`:criterion`, GROUND_TRUTH_TEST_FITNESS) AS pValue
+            FROM experimentFinalStat
             WHERE
-                e.in_problem = :problem
-                AND e.in_samples = :plot_id
-                AND e.in_name = :method
-                AND e.benchmarkVariableCount = :series
-                AND e.instruction = :instruction
+                PROBLEM = :plot_id
+                AND TRAINING_SIZE = :series
+                AND EXPERIMENT_NAME = '700x5'
             LIMIT 1
         ''',
 }
 
 
 def main():
-    db = prepare_db("statistics.sqlite")
+    db = prepare_db("../results/results.sqlite")
 
-    dims = [3, 4, 5, 6, 7]
-    samples = []
-    # samples += [10, 20, 30, 40, 50]
-    samples += [100, 200, 300, 400, 500]
-    raw_problems = ["ball", "simplex", "cube"]
-    problems = ["cube%d" % d for d in dims] + ["simplex%d" % d for d in dims] + ["ball%d" % d for d in dims]
-    methods1 = ["E11", "E12", "E13", "EB11", "EB12", "EB13", "K11", "K12", "K13", "KB11", "KB12", "KB13", "E21", "E22", "E23", "EB21", "EB22", "EB23", "K21", "K22", "K23", "KB21", "KB22", "KB23"]
-    methods2 = ["E11R", "E12R", "E13R", "EB11R", "EB12R", "EB13R", "K11R", "K12R", "K13R", "KB11R", "KB12R", "KB13R", "E21R", "E22R", "E23R", "EB21R", "EB22R", "EB23R", "K21R", "K22R", "K23R", "KB21R", "KB22R", "KB23R"]
+    problems = ["chvatal_diet", "facility_location", "queens1", "queens2", "queens3", "queens4", "queens5", "steinerbaum", "tsp"]
+    training_sizes = {p: [100, 200, 300, 400, 500] for p in problems}
+    training_sizes["queens1"] = [92]
+    training_sizes["steinerbaum"] = [53]
 
-    instructions = ['linear', 'polynomial']
+    cx = ["S", "V1", "F2"]
+    mt = ["S", "I", "C"]
+    ps = ["300", "500", "700"]
+    ts = ["3", "5", "7"]
 
-    p_table = ParameterSet(
-        analyzer={"best": None, "pcritical": 0.95},
-        table={"total_row": "none",
-               "first_column_title": "$m$\\textbackslash{}$n$",
-               "cfmode": "bar",
-               "border": {}})
-    p_angle = expand(p_table, ParameterSet(
-        analyzer={"best": None, "pcritical": 0.90},  # two-tailed t-test with alpha=0.9 is equivalent to one-tiled with alpha=0.95
-        table={
-                "barcffullheight": 0.1,
-                "total_row": "none",
-                "heatmap": {
-                   "min": 0.0,
-                   "max": math.pi * 0.5,
-                   "min_color": "green",
-                   "max_color": "red!90!white",
-                }
-        }
-    ))
+    series = {'tuning': [], 'tuning2': [], 'scaling': []}
+    # tuning pass 1: cx * mt
+    series['tuning'] += [c + m for c in cx for m in mt]
+
+    # tuning pass 2: ps * ts
+    series['tuning2'] += ["%sx%s" % (pop, t) for pop in ps for t in ts]
+
+    # scaling
+    series['scaling'] += [100, 200, 300, 400, 500]
+    problems_scaling = [p for p in problems if p not in {"queens1", "steinerbaum"}]
 
     p_plot = ParameterSet(
         analyzer={
-            "best": 0.0,
-            "plot_id_x": 0.8,
-            "plot_id_y": 0.9,
-            "ymax_percentile": 95.0,
-            "ymax_cf_percentile": 92.5,
+            "best": 1.0,
+            "plot_id_x": 0.76,
+            "plot_id_y": 0.10,
+            # "ymax_percentile": 100.0,
+            # "ymax_cf_percentile": 100.0
+        },
+        plot={
+            "mark repeat=": 10,
         },
         axis={
             # "ymode=": "log",
-            "ymin=": 0,
-            "xmax=": 50,
-            "ylabel=": "Mean fitness",
+            "ymin=": "",
+            "ymax=": 1.01,
+            "xmax=": 60,
+            "ylabel=": "Mean best fitness",
             "xlabel=": "Generations"
         })
 
-    p_table_ex1 = ParameterSet(
+    p_time = expand(p_plot, ParameterSet(
+        plot={
+            "mark repeat=": 15,
+        },
+        axis={
+            "xmin=": 10,
+            "xmax=": "",
+            # "xmode=": "log",
+            "xlabel=": "Time",
+        }
+    ))
+
+    p_table = ParameterSet(
         analyzer={
             "best": 1.0,
             "novalue": -1.0,
@@ -948,91 +999,29 @@ def main():
         }
     )
 
-    p_table_ex3_size = expand(p_table_ex1, ParameterSet(
-        analyzer={
-            "best": 0.0
-        },
-        table={
-            "barcffullheight": 2.0,
-        }
-    ))
-
-    p_table_ex3_angle = expand(p_table_ex1, ParameterSet(
-        analyzer={
-            "best": 0.0
-        },
-        table={
-            "barcffullheight": 0.1,
-        }
-    ))
-
-    p_table_ex3_jaccard = expand(p_table_ex1, ParameterSet(
-        analyzer={
-            "best": 1.0
-        },
-        table={
-            "barcffullheight": 0.1,
-        }
-    ))
-
     plots = []
 
-    for instruction in instructions:
-        methods = methods1 if instruction == 'linear' else methods2
+    plots.append(Table(db, "final_avg_fixed", {"criterion": "best_fitness"}, p_table, problems, series["tuning"]))
+    plots.append(Table(db, "final_avg_fixed", {"criterion": "best_fitness"}, p_table, problems, series["tuning2"]))
+    plots.append(Table(db, "final_avg_fixed", {"criterion": "test_fitness"}, p_table, problems, series["tuning"]))
+    plots.append(Table(db, "final_avg_fixed", {"criterion": "test_fitness"}, p_table, problems, series["tuning2"]))
 
-        # experiment 1
-        # plots.append(Plot(db, "generational_avg", {"criterion": "g.bestModelFitness", "instruction": instruction}, p_plot, problems, methods))
-        plots.append(Table(db, "final_avg_fixed", {"criterion": "feasibleJaccard", "instruction": instruction}, p_table_ex1, problems, methods))
-        plots.append(RTable(db, "final_avg_fixed", {"criterion": "feasibleJaccard", "instruction": instruction}, p_table_ex1, problems, methods))
-        # plots.append(Table(db, "final_avg_fixed", {"criterion": "bestFitness", "instruction": instruction}, p_table_ex1, problems, methods))
-        # plots.append(RTable(db, "final_avg_fixed", {"criterion": "bestFitness", "instruction": instruction}, p_table_ex1, problems, methods))
+    plots.append(Plot(db, "generational_avg", {"criterion": "best_fitness"}, p_plot, problems, series["tuning"]))
+    plots.append(Plot(db, "generational_avg", {"criterion": "best_fitness"}, p_plot, problems, series["tuning2"]))
 
-        for method in []:
-            for problem in raw_problems:
-                # experiment 2
-                plots.append(Table(db, "final_avg", {"problem": problem, "criterion": 'avgAngle', 'method': method, 'instruction': instruction, 'mean': 0.0}, p_angle, samples, dims))
-                plots.append(
-                    Table(db, "final_avg", {"problem": problem, "criterion": 'diffModelTermCount', 'method': method, 'instruction': instruction, 'mean': 0.0}, p_diff_term, samples, dims))
-                plots.append(
-                    Table(db, "final_avg", {"problem": problem, "criterion": 'diffModelConstraintCount', 'method': method, 'instruction': instruction, 'mean': 0.0}, p_diff, samples, dims))
-                plots.append(Table(db, "final_avg", {"problem": problem, "criterion": 'feasibleJaccard', 'method': method, 'instruction': instruction, 'mean': 1.0}, p_jaccard, samples, dims))
-                plots.append(Table(db, "final_avg", {"problem": problem, "criterion": 'infeasibleJaccard', 'method': method, 'instruction': instruction, 'mean': 1.0}, p_testset, samples, dims))
-                plots.append(Table(db, "final_avg", {"problem": problem, "criterion": 'testSensitivity', 'method': method, 'instruction': instruction, 'mean': 1.0}, p_testset, samples, dims))
-                plots.append(Table(db, "final_avg", {"problem": problem, "criterion": 'testPrecision', 'method': method, 'instruction': instruction, 'mean': 1.0}, p_testset, samples, dims))
-                plots.append(Table(db, "final_avg", {"problem": problem, "criterion": 'testAccuracy', 'method': method, 'instruction': instruction, 'mean': 1.0}, p_testset, samples, dims))
+    plots.append(Plot(db, "time_avg", {"criterion": "best_fitness"}, p_time, problems, series["tuning"]))
+    plots.append(Plot(db, "time_avg", {"criterion": "best_fitness"}, p_time, problems, series["tuning2"]))
 
-        # plots.append(Table(db, "final_avg_fixed", {"criterion": "enabledConstraintCount", "instruction": instruction}, p_table_ex3_size, problems, methods))
-        # plots.append(RTable(db, "final_avg_fixed", {"criterion": "enabledConstraintCount", "instruction": instruction}, p_table_ex3_size, problems, methods))
-        #
-        # plots.append(Table(db, "final_avg_fixed", {"criterion": "avgAngle", "instruction": instruction}, p_table_ex3_angle, problems, methods))
-        # plots.append(RTable(db, "final_avg_fixed", {"criterion": "avgAngle", "instruction": instruction}, p_table_ex3_angle, problems, methods))
-        #
-        # plots.append(Table(db, "final_avg_fixed", {"criterion": "feasibleJaccard", "instruction": instruction}, p_table_ex3_jaccard, problems, methods))
-        # plots.append(RTable(db, "final_avg_fixed", {"criterion": "feasibleJaccard", "instruction": instruction}, p_table_ex3_jaccard, problems, methods))
-        #
-        # plots.append(Table(db, "final_avg_fixed", {"criterion": "testPrecision", "instruction": instruction}, p_table_ex3_jaccard, problems, methods))
-        # plots.append(RTable(db, "final_avg_fixed", {"criterion": "testPrecision", "instruction": instruction}, p_table_ex3_jaccard, problems, methods))
-        #
-        # plots.append(Table(db, "final_avg_fixed", {"criterion": "testSensitivity", "instruction": instruction}, p_table_ex3_jaccard, problems, methods))
-        # plots.append(RTable(db, "final_avg_fixed", {"criterion": "testSensitivity", "instruction": instruction}, p_table_ex3_jaccard, problems, methods))
-        #
-        # plots.append(Table(db, "final_avg_fixed", {"criterion": "enabledConstraintCount", "instruction": instruction}, p_table_ex3_size, problems, methods))
-        # plots.append(RTable(db, "final_avg_fixed", {"criterion": "enabledConstraintCount", "instruction": instruction}, p_table_ex3_size, problems, methods))
-        #
-        # plots.append(Table(db, "final_avg_fixed", {"criterion": "avgAngle", "instruction": instruction}, p_table_ex3_angle, problems, methods))
-        # plots.append(RTable(db, "final_avg_fixed", {"criterion": "avgAngle", "instruction": instruction}, p_table_ex3_angle, problems, methods))
-        #
-        # plots.append(Table(db, "final_avg_fixed", {"criterion": "feasibleJaccard", "instruction": instruction}, p_table_ex3_jaccard, problems, methods))
-        # plots.append(RTable(db, "final_avg_fixed", {"criterion": "feasibleJaccard", "instruction": instruction}, p_table_ex3_jaccard, problems, methods))
-        #
-        # plots.append(Table(db, "final_avg_fixed", {"criterion": "testPrecision", "instruction": instruction}, p_table_ex3_jaccard, problems, methods))
-        # plots.append(RTable(db, "final_avg_fixed", {"criterion": "testPrecision", "instruction": instruction}, p_table_ex3_jaccard, problems, methods))
-        #
-        # plots.append(Table(db, "final_avg_fixed", {"criterion": "testSensitivity", "instruction": instruction}, p_table_ex3_jaccard, problems, methods))
-        # plots.append(RTable(db, "final_avg_fixed", {"criterion": "testSensitivity", "instruction": instruction}, p_table_ex3_jaccard, problems, methods))
+    # plots.append(Table(db, "final_avg", {"criterion": "best_fitness"}, p_table, problems_scaling, series["scaling"]))
+    # plots.append(Table(db, "final_avg", {"criterion": "best_fitness"}, p_table, problems_scaling, series["scaling"]))
+    # plots.append(Table(db, "final_avg", {"criterion": "test_fitness"}, p_table, problems_scaling, series["scaling"]))
+    # plots.append(Table(db, "final_avg", {"criterion": "test_fitness"}, p_table, problems_scaling, series["scaling"]))
+    #
+    # plots.append(Plot(db, "generational_avg", {"criterion": "best_fitness"}, p_plot, problems_scaling, series["scaling"]))
 
     runner = Runner(plots)
     runner.run()
+
 
 if __name__ == "__main__":
     main()

@@ -55,7 +55,7 @@ class SlurmPool:
         sbatch.write("#!/bin/bash\n")
         sbatch.write("#SBATCH -p lab-ci,lab-43,lab-44\n")
         sbatch.write("#SBATCH -c 1 --mem=1475\n")
-        sbatch.write("#SBATCH -t 6:00:00\n")
+        sbatch.write("#SBATCH -t 12:00:00\n")
         sbatch.write("export GRB_LICENSE_FILE=~/gurobi-$(hostname).lic\n")
         sbatch.write("date\n")
         sbatch.write("hostname\n")
@@ -81,7 +81,7 @@ class CompleteDetector:
 
         cursor = self.db.cursor()
         try:
-            cursor.execute("CREATE INDEX IF NOT EXISTS parametersParentExpProbSeedTrain ON parameters(parent, EXPERIMENT_NAME, PROBLEM, RANDOM_SEED, TRAINING_SIZE)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS parametersParentNameProblemTrainingSize ON parameters(parent, EXPERIMENT_NAME, PROBLEM, TRAINING_SIZE)")
 
         except sqlite3.OperationalError as e:
             self.no_db = True
@@ -134,7 +134,7 @@ def main():
     detector = CompleteDetector()
 
     settings_parser1 = re.compile(r'--(?P<param>\S+)\s+(?P<value>\S+)')
-    settings_parser2 = re.compile(r'(?P<param>[^=\s]+)=(?P<value>[^,\s]+)')
+    settings_parser2 = re.compile(r"(?P<param>[a-zA-Z0-9_]+)='?(?P<value>[a-zA-Z0-9_]+)'?")
 
     total_runs = 0
     executed_runs = 0

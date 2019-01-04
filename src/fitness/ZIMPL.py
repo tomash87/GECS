@@ -35,13 +35,6 @@ class ZIMPL(base_ff):
     def __init__(self):
         # Initialise base fitness function class.
         super().__init__()
-
-        # we assume --extra_parameters is a comma-separated kv sequence, eg:
-        # "alpha=0.5, beta=0.5, gamma=0.5"
-        # which we can pass to the dict() constructor
-        extra_params = eval("dict(" + "".join(params['EXTRA_PARAMETERS']) + ")")
-        params.update(extra_params)
-
         problem_name = params["PROBLEM"]
         base_dir = os.path.dirname(__file__)
         dataset_dir = base_dir + "/../../datasets/ZIMPL"
@@ -233,6 +226,14 @@ def cast_int(x):
     return int(x)
 
 
+# patching extra parameters
+# we assume --extra_parameters is a comma-separated kv sequence, eg:
+# "alpha=0.5, beta=0.5, gamma=0.5"
+# which we can pass to the dict() constructor
+extra_params = eval("dict(" + "".join(params['EXTRA_PARAMETERS']) + ")")
+params.update(extra_params)
+
+
 # monkey patching statistics to write formatted programs
 stats.stats.save_best_ind_to_file = ZIMPL.save_best_ind_to_file
 # monkey patching statistics to write experiment database
@@ -242,3 +243,4 @@ if ZIMPL.prev_get_soo_stats is None:
 ZIMPL.init_experimentdatabase()
 ZIMPL.prev_excepthook = sys.excepthook
 sys.excepthook = ZIMPL.except_hook
+
