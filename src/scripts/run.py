@@ -103,7 +103,7 @@ class CompleteDetector:
 
 
 def main():
-    seeds = range(0, 10)
+    seeds = range(0, 15)
     prob = ["chvatal_diet", "facility_location", "queens1", "queens2", "queens3", "queens4", "queens5", "steinerbaum", "tsp"]
     training_sizes = {p: [100, 200, 300, 400, 500] for p in prob}
     training_sizes["queens1"] = [92]
@@ -117,15 +117,16 @@ def main():
     settings = {'tuning': {}, 'scaling': {}}
     problems = {'tuning': {}, 'scaling': {}}
     # tuning pass 1: cx * mt
-    settings['tuning'].update({c + m: r"%s %s --population_size 500 --tournament_size 5" % (cc, mc) for c, cc in cx.items() for m, mc in mt.items()})
-    problems['tuning'].update({p: "--grammar ZIMPL-dedicated-%s.bnf --extra_parameters PROBLEM='%s', TRAINING_SIZE=300" % (p, p)
-                               for p in prob})
+    # if c+m in {"SI", "SC"}
+    settings['tuning'].update({c + m: r"%s %s --population_size 500 --tournament_size 5" % (cc, mc) for c, cc in cx.items() for m, mc in mt.items() if c+m not in {"SI", "SC"}})
+    problems['tuning'].update({p: "--grammar ZIMPL-dedicated-%s.bnf --extra_parameters PROBLEM='%s', TRAINING_SIZE=%d" % (p, p, min(300, max(training_sizes[p])))
+                              for p in prob})
 
     # tuning pass 2: ps * ts
     settings['tuning'].update({"%sx%s" % (pop, t): r"%s %s --crossover subtree --mutation subtree" % (pc, tc) for pop, pc in ps.items() for t, tc in ts.items()})
 
     # scaling
-    settings['scaling'].update({"700x5": r"--population_size 700 --tournament_size 5 --crossover subtree --mutation subtree"})
+    settings['scaling'].update({"700x3": r"--population_size 700 --tournament_size 3 --crossover subtree --mutation subtree"})
     problems['scaling'].update({p + str(t): "--grammar ZIMPL-dedicated-%s.bnf --extra_parameters PROBLEM='%s', TRAINING_SIZE=%d" % (p, p, t)
                                 for p in prob for t in training_sizes[p] if t != 300})
 
@@ -151,6 +152,7 @@ def main():
                         continue
 
                     executed_runs += 1
+                    # ZIMPL-experiment-lookup_bad_fitness.txt
                     cmd = "-O ponyge.py --parameters ZIMPL-experiment.txt --random_seed %d --experiment_name %s %s %s" % (seed, name, cmd_setting, cmd_problem)
                     log = "%s_%s%s_%d" % (name, params["PROBLEM"], params["TRAINING_SIZE"], seed)
                     pool.execute("python3", cmd, log)

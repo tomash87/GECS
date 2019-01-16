@@ -275,7 +275,7 @@ def register_aggregates(db):
 
 # Database management
 
-def prepare_connection(filename):
+def prepare_connection(filename: str) -> sqlite3.Connection:
     db = sqlite3.connect(filename, 3600.0, 0, "IMMEDIATE")
     cursor = db.cursor()
     cursor.execute("PRAGMA foreign_keys=ON")

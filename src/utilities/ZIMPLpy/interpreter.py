@@ -127,7 +127,7 @@ class Interpreter:
 
         out = np.empty((X.shape[0]), dtype=np.uint16)
 
-        gurobi_vars = [model.getVarByName(v) for v in X.columns] if len(self.vars) > 0 else [None for v in X.columns]
+        gurobi_vars = [model.getVarByName(v) for v in X.columns] if len(model.getVars()) > 0 else [None for v in X.columns]
 
         Xv = X.values
         for i in range(Xv.shape[0]):
@@ -343,3 +343,4 @@ class Interpreter:
 
 Interpreter.gurobi_env.setParam(GRB.Param.LogToConsole, 0)
 Interpreter.gurobi_env.setParam(GRB.Param.Threads, 1)
+Interpreter.gurobi_env.setParam(GRB.Param.TimeLimit, 600)  # 10 minutes - protection from hanging in model solving

@@ -1,5 +1,7 @@
 import abc
+import os
 import re
+import sqlite3
 from collections import OrderedDict
 import copy
 import math
@@ -48,7 +50,6 @@ def normalize_data(db):
     except:
         pass
 
-
     cursor.execute(r'''CREATE TEMP VIEW IF NOT EXISTS experimentStat AS
                        SELECT *
                        FROM experiments e 
@@ -74,7 +75,7 @@ def prepare_indexes(db):
     cursor.execute("ANALYZE")
 
 
-def prepare_db(filename="../results/results.sqlite"):
+def prepare_db(filename="../results/results.sqlite") -> sqlite3.Connection:
     start = time.time()
     db = prepare_connection(filename)
     normalize_data(db)
@@ -175,104 +176,104 @@ series_parameters = {
     "SS": ParameterSet({}, {
         "draw=": "magenta",
         "mark=": "triangle*",
-        "mark options=": "{fill=magenta, scale=0.5, solid}",
+        "mark options=": "{fill=magenta, scale=0.6, solid}",
     }),
     "SI": ParameterSet({}, {
         "draw=": "magenta",
         "mark=": "asterisk",
-        "mark options=": "{fill=magenta, scale=0.5, solid}",
+        "mark options=": "{fill=magenta, scale=0.6, solid}",
     }),
     "SC": ParameterSet({}, {
         "draw=": "magenta",
         "mark=": "diamond*",
-        "mark options=": "{fill=magenta, scale=0.5, solid}",
+        "mark options=": "{fill=magenta, scale=0.6, solid}",
     }),
     "V1S": ParameterSet({}, {
         "draw=": "cyan",
         "dashed": "",
         "mark=": "triangle*",
-        "mark options=": "{fill=cyan, scale=0.5, solid}",
+        "mark options=": "{fill=cyan, scale=0.6, solid}",
     }),
     "V1I": ParameterSet({}, {
         "draw=": "cyan",
         "dashed": "",
         "mark=": "asterisk",
-        "mark options=": "{fill=cyan, scale=0.5, solid}",
+        "mark options=": "{fill=cyan, scale=0.6, solid}",
     }),
     "V1C": ParameterSet({}, {
         "draw=": "cyan",
         "dashed": "",
         "mark=": "diamond*",
-        "mark options=": "{fill=cyan, scale=0.5, solid}",
+        "mark options=": "{fill=cyan, scale=0.6, solid}",
     }),
     "F2S": ParameterSet({}, {
         "draw=": "green!80!lime",
         "densely dotted": "",
         "mark=": "triangle*",
-        "mark options=": "{fill=green!80!lime, scale=0.5, solid}",
+        "mark options=": "{fill=green!80!lime, scale=0.6, solid}",
     }),
     "F2I": ParameterSet({}, {
         "draw=": "green!80!lime",
         "densely dotted": "",
         "mark=": "asterisk",
-        "mark options=": "{fill=green!80!lime, scale=0.5, solid}",
+        "mark options=": "{fill=green!80!lime, scale=0.6, solid}",
     }),
     "F2C": ParameterSet({}, {
         "draw=": "green!80!lime",
         "densely dotted": "",
         "mark=": "diamond*",
-        "mark options=": "{fill=green!80!lime, scale=0.5, solid}",
+        "mark options=": "{fill=green!80!lime, scale=0.6, solid}",
     }),
     "300x3": ParameterSet({}, {
         "draw=": "magenta",
         "mark=": "triangle*",
-        "mark options=": "{fill=magenta, scale=0.5, solid}",
+        "mark options=": "{fill=magenta, scale=0.6, solid}",
     }),
     "300x5": ParameterSet({}, {
         "draw=": "magenta",
         "mark=": "asterisk",
-        "mark options=": "{fill=magenta, scale=0.5, solid}",
+        "mark options=": "{fill=magenta, scale=0.6, solid}",
     }),
     "300x7": ParameterSet({}, {
         "draw=": "magenta",
         "mark=": "diamond*",
-        "mark options=": "{fill=magenta, scale=0.5, solid}",
+        "mark options=": "{fill=magenta, scale=0.6, solid}",
     }),
     "500x3": ParameterSet({}, {
         "draw=": "cyan",
         "densely dashed": "",
         "mark=": "triangle*",
-        "mark options=": "{fill=cyan, scale=0.5, solid}",
+        "mark options=": "{fill=cyan, scale=0.6, solid}",
     }),
     "500x5": ParameterSet({}, {
         "draw=": "cyan",
         "densely dashed": "",
         "mark=": "asterisk",
-        "mark options=": "{fill=cyan, scale=0.5, solid}",
+        "mark options=": "{fill=cyan, scale=0.6, solid}",
     }),
     "500x7": ParameterSet({}, {
         "draw=": "cyan",
         "densely dashed": "",
         "mark=": "diamond*",
-        "mark options=": "{fill=cyan, scale=0.5, solid}",
+        "mark options=": "{fill=cyan, scale=0.6, solid}",
     }),
     "700x3": ParameterSet({}, {
         "draw=": "green!80!lime",
         "densely dotted": "",
         "mark=": "triangle*",
-        "mark options=": "{fill=green!80!lime, scale=0.5, solid}",
+        "mark options=": "{fill=green!80!lime, scale=0.6, solid}",
     }),
     "700x5": ParameterSet({}, {
         "draw=": "green!80!lime",
         "densely dotted": "",
         "mark=": "asterisk",
-        "mark options=": "{fill=green!80!lime, scale=0.5, solid}",
+        "mark options=": "{fill=green!80!lime, scale=0.6, solid}",
     }),
     "700x7": ParameterSet({}, {
         "draw=": "green!80!lime",
         "densely dotted": "",
         "mark=": "diamond*",
-        "mark options=": "{fill=green!80!lime, scale=0.5, solid}",
+        "mark options=": "{fill=green!80!lime, scale=0.6, solid}",
     }),
 }
 
@@ -493,7 +494,7 @@ class Plot(Statistics):
                   \end{axis}
                   ''' % dict(params=",\n".join("%s%s" % (k, v) for (k, v) in params.axis.items()),
                              legend=legend,
-                             plot_id=plot_id,
+                             plot_id=self.format_name_latex(plot_id),
                              plot_id_x=params.analyzer["plot_id_x"],
                              plot_id_y=params.analyzer["plot_id_y"],
                              series="\n".join(r'''\addplot[%(params)s]
@@ -757,7 +758,7 @@ class RTable(Statistics):
     def get_full_document(self):
         params = expand(defaults, self.params)
 
-        out = r'''source('../friedman.r', chdir = T)
+        out = r'''source('%(dir)s/friedman.r', chdir = T)
             methods <- c(%(methods)s)
             problems <- c(%(problems)s)
             Data <- data.frame(
@@ -766,7 +767,7 @@ class RTable(Statistics):
                 Problems = factor(c(%(problems_rep)s))
             )
             output <- friedman.test.with.post.hoc(Table ~ Methods | Problems, Data, to.print.friedman = F, to.plot.parallel = F, to.plot.boxplot = F)
-            source('../friedmanPostAnalysis.r', chdir = T)
+            source('%(dir)s/friedmanPostAnalysis.r', chdir = T)
             png('%(name)s-friedman.png')
             plot(graph, layout=layout.circle, vertex.size=50, edge.color='Black')
             dev.off()
@@ -774,7 +775,8 @@ class RTable(Statistics):
             cat(paste('Friedman\'s p-value = $', pvalue(output[[1]]), '$', sep=''))
             print(xtable(matrix, digits = 3), type='latex', sanitize.text.function = function(x){x})
             sink()
-            ''' % dict(methods=", ".join("'%s'" % self.format_name_latex(s) for s in list(self.plots.values())[0]),
+            ''' % dict(dir=os.path.dirname(__file__),
+                       methods=", ".join("'%s'" % self.format_name_latex(s) for s in list(self.plots.values())[0]),
                        problems=", ".join("'%s'" % p for p in self.plots),
                        data=self.serialize_data(params),
                        problem_count=len(self.plots),
@@ -858,7 +860,7 @@ queries = {
             WHERE
                 EXPERIMENT_NAME = :series
                 AND PROBLEM = :plot_id
-                AND TRAINING_SIZE = 300
+                AND TRAINING_SIZE IN (53, 92, 300)  -- no problem has more than one of these values
             GROUP BY
                 gen
             ORDER BY
@@ -880,10 +882,10 @@ queries = {
                 WHERE
                     e1.EXPERIMENT_NAME = :series
                     AND e1.PROBLEM = :plot_id
-                    AND e1.TRAINING_SIZE = 300
+                    AND e1.TRAINING_SIZE IN (53, 92, 300)  -- no problem has more than one of these values
                     AND e2.EXPERIMENT_NAME = :series
                     AND e2.PROBLEM = :plot_id
-                    AND e2.TRAINING_SIZE = 300
+                    AND e2.TRAINING_SIZE IN (53, 92, 300)  -- no problem has more than one of these values
                     AND e1.TOTAL_TIME >= e2.TOTAL_TIME
                 GROUP BY
                     e1.id, e1.gen, e2.id
@@ -891,7 +893,7 @@ queries = {
             WHERE x <= 1200
             GROUP BY
                 id, x
-            HAVING COUNT(*) >= 5
+            HAVING COUNT(*) >= 10
             ORDER BY
                 x
         ''',
@@ -904,7 +906,7 @@ queries = {
             WHERE
                 PROBLEM = :plot_id
                 AND EXPERIMENT_NAME = :series
-                AND TRAINING_SIZE = 300
+                AND TRAINING_SIZE IN (53, 92, 300)  -- no problem has more than one of these values
             LIMIT 1
         ''',
     "final_avg":
@@ -986,14 +988,13 @@ def main():
         },
         table={
             "heatmap": {
-                "min": 0.0,
+                "min": 0.4,
                 "max": 1.0,
                 "min_color": "red!70!yellow!80!white",
                 "max_color": "green!70!lime",
             },
             "cfmode": "bar",
             "barcffullheight": 0.1,
-            "border": {},
             "number_format": "%.2f",
             "first_column_title": "\\hspace*{-0.1em}Problem\\hspace*{-0.25em}"
         }
@@ -1001,16 +1002,21 @@ def main():
 
     plots = []
 
+    # plots.append(Plot(db, "time_avg", {"criterion": "best_fitness"}, p_time, problems, series["tuning"]))
+    # plots.append(Plot(db, "time_avg", {"criterion": "best_fitness"}, p_time, problems, series["tuning2"]))
+
+    plots.append(Plot(db, "generational_avg", {"criterion": "best_fitness"}, p_plot, problems, series["tuning"]))
+    plots.append(Plot(db, "generational_avg", {"criterion": "best_fitness"}, p_plot, problems, series["tuning2"]))
+
     plots.append(Table(db, "final_avg_fixed", {"criterion": "best_fitness"}, p_table, problems, series["tuning"]))
     plots.append(Table(db, "final_avg_fixed", {"criterion": "best_fitness"}, p_table, problems, series["tuning2"]))
     plots.append(Table(db, "final_avg_fixed", {"criterion": "test_fitness"}, p_table, problems, series["tuning"]))
     plots.append(Table(db, "final_avg_fixed", {"criterion": "test_fitness"}, p_table, problems, series["tuning2"]))
 
-    plots.append(Plot(db, "generational_avg", {"criterion": "best_fitness"}, p_plot, problems, series["tuning"]))
-    plots.append(Plot(db, "generational_avg", {"criterion": "best_fitness"}, p_plot, problems, series["tuning2"]))
-
-    plots.append(Plot(db, "time_avg", {"criterion": "best_fitness"}, p_time, problems, series["tuning"]))
-    plots.append(Plot(db, "time_avg", {"criterion": "best_fitness"}, p_time, problems, series["tuning2"]))
+    plots.append(RTable(db, "final_avg_fixed", {"criterion": "best_fitness"}, p_table, problems, series["tuning"]))
+    plots.append(RTable(db, "final_avg_fixed", {"criterion": "best_fitness"}, p_table, problems, series["tuning2"]))
+    plots.append(RTable(db, "final_avg_fixed", {"criterion": "test_fitness"}, p_table, problems, series["tuning"]))
+    plots.append(RTable(db, "final_avg_fixed", {"criterion": "test_fitness"}, p_table, problems, series["tuning2"]))
 
     # plots.append(Table(db, "final_avg", {"criterion": "best_fitness"}, p_table, problems_scaling, series["scaling"]))
     # plots.append(Table(db, "final_avg", {"criterion": "best_fitness"}, p_table, problems_scaling, series["scaling"]))
@@ -1019,6 +1025,7 @@ def main():
     #
     # plots.append(Plot(db, "generational_avg", {"criterion": "best_fitness"}, p_plot, problems_scaling, series["scaling"]))
 
+    db.close()
     runner = Runner(plots)
     runner.run()
 
