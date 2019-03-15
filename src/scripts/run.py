@@ -81,7 +81,7 @@ class CompleteDetector:
 
         cursor = self.db.cursor()
         try:
-            cursor.execute("CREATE INDEX IF NOT EXISTS parametersParentNameProblemTrainingSize ON parameters(parent, EXPERIMENT_NAME, PROBLEM, TRAINING_SIZE)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS parametersParentNameProblemRandomSeedTrainingSize ON parameters(parent, EXPERIMENT_NAME, PROBLEM, RANDOM_SEED, TRAINING_SIZE)")
 
         except sqlite3.OperationalError as e:
             self.no_db = True
@@ -91,21 +91,23 @@ class CompleteDetector:
         if self.no_db:
             return False
         cursor = self.db.cursor()
-        cursor.execute("SELECT COUNT(*) FROM experiments e JOIN parameters p ON e.id=p.parent "
+        cursor.execute("SELECT 1 FROM experiments e JOIN parameters p ON e.id=p.parent "
                        "WHERE p.EXPERIMENT_NAME=:EXPERIMENT_NAME "
                        "AND p.PROBLEM=:PROBLEM "
                        "AND p.RANDOM_SEED=:RANDOM_SEED "
                        "AND p.TRAINING_SIZE=:TRAINING_SIZE "
-                       "AND e.error_exctype IS NULL", params)
+                       "AND e.error_exctype IS NULL "
+                       "LIMIT 1", params)
         data = cursor.fetchall()
         # print(data[0][0])
-        return data[0][0] > 0
+        # return data[0][0] > 0
+        return len(data) > 0
 
 
 def main():
     seeds = range(0, 15)
     prob = ["chvatal_diet", "facility_location", "queens1", "queens2", "queens3", "queens4", "queens5", "steinerbaum", "tsp"]
-    training_sizes = {p: [100, 200, 300, 400, 500] for p in prob}
+    training_sizes = {p: [100, 200, 300, 400, 500, 600, 700] for p in prob}
     training_sizes["queens1"] = [92]
     training_sizes["steinerbaum"] = [53]
 
@@ -113,22 +115,27 @@ def main():
     mt = {"S": "--mutation subtree", "C": "--mutation int_flip_per_codon", "I": "--mutation int_flip_per_ind"}
     ps = {"300": "--population_size 300", "500": "--population_size 500", "700": "--population_size 700"}
     ts = {"3": "--tournament_size 3", "5": "--tournament_size 5", "7": "--tournament_size 7"}
+    td = {"10": "--max_tree_depth 10", "11": "--max_tree_depth 11", "12": "--max_tree_depth 12"}
+    id = {"7": "--max_init_tree_depth 7", "8": "--max_init_tree_depth 8", "9": "--max_init_tree_depth 9"}
 
     settings = {'tuning': {}, 'scaling': {}}
     problems = {'tuning': {}, 'scaling': {}}
     # tuning pass 1: cx * mt
     # if c+m in {"SI", "SC"}
     settings['tuning'].update({c + m: r"%s %s --population_size 500 --tournament_size 5" % (cc, mc) for c, cc in cx.items() for m, mc in mt.items() if c+m not in {"SI", "SC"}})
-    problems['tuning'].update({p: "--grammar ZIMPL-dedicated-%s.bnf --extra_parameters PROBLEM='%s', TRAINING_SIZE=%d" % (p, p, min(300, max(training_sizes[p])))
+    problems['tuning'].update({p: "--grammar ZIMPL-dedicated-%s.bnf --extra_parameters PROBLEM='%s', TRAINING_SIZE=%d" % (p, p, min(400, max(training_sizes[p])))
                               for p in prob})
 
     # tuning pass 2: ps * ts
     settings['tuning'].update({"%sx%s" % (pop, t): r"%s %s --crossover subtree --mutation subtree" % (pc, tc) for pop, pc in ps.items() for t, tc in ts.items()})
 
+    # tuning pass 3: td * id
+    settings['tuning'].update({"%sx%s" % (t, i): r"%s %s --population_size 700 --tournament_size 3 --crossover subtree --mutation subtree" % (tc, ic) for t, tc in td.items() for i, ic in id.items()})
+
     # scaling
     settings['scaling'].update({"700x3": r"--population_size 700 --tournament_size 3 --crossover subtree --mutation subtree"})
     problems['scaling'].update({p + str(t): "--grammar ZIMPL-dedicated-%s.bnf --extra_parameters PROBLEM='%s', TRAINING_SIZE=%d" % (p, p, t)
-                                for p in prob for t in training_sizes[p] if t != 300})
+                                for p in prob for t in training_sizes[p] if t != 400})
 
     # pool = ProcessPool()
     pool = SlurmPool()

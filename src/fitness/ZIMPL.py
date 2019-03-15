@@ -4,6 +4,7 @@ import re
 import sys
 from tempfile import mkstemp
 from traceback import format_tb
+import inspect
 
 import pandas as pd
 import numpy as np
@@ -48,8 +49,8 @@ class ZIMPL(base_ff):
         training_size = cast_int(params.get("TRAINING_SIZE"))
         test_size = cast_int(params.get("TEST_SIZE"))
 
-        self.training_set = self.load_dataset("%s/%s_training.csv.bz2" % (dataset_dir, problem_name), training_size)
-        self.test_set = self.load_dataset("%s/%s_test.csv.bz2" % (dataset_dir, problem_name), test_size)
+        self.training_set = Evaluator("%s/%s_training.csv.bz2" % (dataset_dir, problem_name), training_size)
+        self.test_set = Evaluator("%s/%s_test.csv.bz2" % (dataset_dir, problem_name), test_size)
 
         self.training_test = True
         self.vardefs = list(self.ground_truth_program.vardefs.keys())
@@ -59,15 +60,8 @@ class ZIMPL(base_ff):
         self.default_fitness = 0.0
         self.tmp_file_handle, self.tmp_filename = mkstemp(".zpl")
 
-        statistics["GROUND_TRUTH_TRAINING_FITNESS"] = ZIMPL.fitness(self.training_set, self.ground_truth_interpreter, self.ground_truth_phenotype)
-        statistics["GROUND_TRUTH_TEST_FITNESS"] = ZIMPL.fitness(self.test_set, self.ground_truth_interpreter, self.ground_truth_phenotype)
-
-    def load_dataset(self, filename, size):
-        set = pd.read_csv(filename, index_col=False, engine='c', na_filter=False, dtype=np.double)
-        if size is not None and set.shape[0] > size:
-            set = set.sample(size)
-            set.reset_index(inplace=True, drop=True)
-        return set
+        statistics["GROUND_TRUTH_TRAINING_FITNESS"] = self.training_set.fitness(self.ground_truth_interpreter, self.ground_truth_phenotype)
+        statistics["GROUND_TRUTH_TEST_FITNESS"] = self.test_set.fitness(self.ground_truth_interpreter, self.ground_truth_phenotype)
 
     def load_template(self):
         with open(self.zimpl_ground_truth_filename) as f:
@@ -94,7 +88,7 @@ class ZIMPL(base_ff):
             # os.fsync(self.tmp_file_handle) # no buffering
 
             with Interpreter(self.tmp_filename, not ZIMPL.debug) as interpreter:
-                return ZIMPL.fitness(data, interpreter, program)
+                return data.fitness(interpreter, program)
 
         except ValueError as e:
             # if "Error 168" in str(e):
@@ -123,40 +117,6 @@ class ZIMPL(base_ff):
             phenotype = phenotype[:name_pos] + new_name + phenotype[name_pos + name_len:]
             name_pos += len(new_name)
         return phenotype
-
-    @staticmethod
-    def fitness(data, interpreter, phenotype):
-        recall = ZIMPL.recall(data, interpreter)
-        if recall < 1e-6:
-            return 0.0
-        precision = ZIMPL.precision(data, interpreter)
-        return 2 * recall * precision / (recall + precision) - 1e-6 * len(phenotype)
-        # probability = interpreter.estimate_volume()
-        # return recall / (recall * probability + 0.5) - 1e-8 * len(phenotype)  # 2pr/(p+r) = 2rc/Pr(f(x)=1)/(c/Pr(f(x)=1)+r) = 2rc/(c+r*Pr(f(x)=1)) # c = 0.01
-        # bounded_prob = max(probability, 1e-6)
-        # precision = 0.1 ** math.ceil(math.log(bounded_prob/2, 0.1)) / bounded_prob  # -math.log(2,0.1) = 0.3010299956639812
-        # precision = 1 - probability**2
-        # return 2 * recall * precision / (recall + precision)
-
-    @staticmethod
-    def recall(data: pd.DataFrame, interpreter):
-        assert "class" not in data.columns or data["class"].all(), data
-        tp = interpreter.is_satisfied(data).sum()
-        fn = data.shape[0] - tp
-        assert 0 <= tp <= data.shape[0]
-        assert 0 <= fn <= data.shape[0]
-        return tp / (tp + fn)
-
-    @staticmethod
-    def precision(X: pd.DataFrame, interpreter):
-        assert "class" not in X.columns or X["class"].all(), X
-        P: pd.DataFrame = interpreter.sample_positive(X.shape[0])
-        if P.shape[1] < X.shape[1]:
-            for c in X.columns:
-                if c not in P.columns:
-                    P[c] = 0.0
-        assert P.shape[1] == X.shape[1]
-        return helper.precision(X.values, P.values)
 
     @staticmethod
     def confusion_matrix(data, program):
@@ -203,9 +163,9 @@ class ZIMPL(base_ff):
         generation = ZIMPL.experiment.new_child_data_set("generations")
         generation.update({k: v for k, v in statistics.items() if not k.startswith("GROUND")})
         generation["best_phenotype"] = params["FITNESS_FUNCTION"].format_program(trackers.best_ever.phenotype)
+        generation["test_fitness"] = params["FITNESS_FUNCTION"].evaluate(trackers.best_ever, dist="test")
         generation["end"] = end
         if end:
-            ZIMPL.experiment["test_fitness"] = trackers.best_ever.test_fitness
             ZIMPL.experiment.save(True)
             ZIMPL.experiment = None
             ZIMPL.database.__exit__(None, None, None)
@@ -220,6 +180,45 @@ class ZIMPL(base_ff):
         ZIMPL.prev_excepthook(exctype, value, tb)
 
 
+class Evaluator:
+    def __init__(self, dataset_filename, size):
+        self.data = self.load_dataset(dataset_filename, size)
+
+    def load_dataset(self, filename, size):
+        set = pd.read_csv(filename, index_col=False, engine='c', na_filter=False, dtype=np.double)
+        if size is not None and set.shape[0] > size:
+            set = set.sample(size)
+            set.reset_index(inplace=True, drop=True)
+        return set
+
+    def fitness(self, interpreter, phenotype):
+        recall = self.recall(interpreter)
+        if recall < 1e-6:
+            return 0.0
+        precision = self.precision(interpreter)
+        return 2 * recall * precision / (recall + precision) - 1e-6 * len(phenotype)
+
+    def recall(self, interpreter):
+        assert "class" not in self.data.columns or self.data["class"].all(), self.data
+        tp = interpreter.is_satisfied(self.data).sum()
+        fn = self.data.shape[0] - tp
+        assert 0 <= tp <= self.data.shape[0]
+        assert 0 <= fn <= self.data.shape[0]
+        return tp / (tp + fn)
+
+    def precision(self, interpreter):
+        assert "class" not in self.data.columns or self.data["class"].all(), self.data
+        P: pd.DataFrame = interpreter.sample_positive(self.data.shape[0])
+        if P.shape[1] < self.data.shape[1]:
+            for c in self.data.columns:
+                if c not in P.columns:
+                    P[c] = 0.0
+            P = P[self.data.columns]
+        assert P.shape[1] == self.data.shape[1]
+        assert all(a == b for a, b in zip(P.columns, self.data.columns))
+        return helper.precision(self.data.values, P.values)
+
+
 def cast_int(x):
     if x is None:
         return None
@@ -230,17 +229,19 @@ def cast_int(x):
 # we assume --extra_parameters is a comma-separated kv sequence, eg:
 # "alpha=0.5, beta=0.5, gamma=0.5"
 # which we can pass to the dict() constructor
-extra_params = eval("dict(" + "".join(params['EXTRA_PARAMETERS']) + ")")
-params.update(extra_params)
+if 'EXTRA_PARAMETERS' in params:
+    extra_params = eval("dict(" + "".join(params['EXTRA_PARAMETERS']) + ")")
+    params.update(extra_params)
 
 
 # monkey patching statistics to write formatted programs
-stats.stats.save_best_ind_to_file = ZIMPL.save_best_ind_to_file
-# monkey patching statistics to write experiment database
-if ZIMPL.prev_get_soo_stats is None:
-    ZIMPL.prev_get_soo_stats = stats.stats.get_soo_stats
-    stats.stats.get_soo_stats = ZIMPL.get_soo_stats
-ZIMPL.init_experimentdatabase()
-ZIMPL.prev_excepthook = sys.excepthook
-sys.excepthook = ZIMPL.except_hook
+if any("ponyge.py" in frame.filename for frame in inspect.stack()):
+    stats.stats.save_best_ind_to_file = ZIMPL.save_best_ind_to_file
+    # monkey patching statistics to write experiment database
+    if ZIMPL.prev_get_soo_stats is None:
+        ZIMPL.prev_get_soo_stats = stats.stats.get_soo_stats
+        stats.stats.get_soo_stats = ZIMPL.get_soo_stats
+    ZIMPL.init_experimentdatabase()
+    ZIMPL.prev_excepthook = sys.excepthook
+    sys.excepthook = ZIMPL.except_hook
 

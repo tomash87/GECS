@@ -2,9 +2,10 @@ import abc
 import os
 import re
 import sqlite3
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 import copy
 import math
+import numpy as np
 import scipy.stats
 import numpy
 import sys
@@ -51,15 +52,20 @@ def normalize_data(db):
         pass
 
     cursor.execute(r'''CREATE TEMP VIEW IF NOT EXISTS experimentStat AS
-                       SELECT *
+                       SELECT *,
+                       total_time / 60.0 AS total_time_min,
+                       p.max_genome_length AS p_max_genome_length,
+                       p.max_tree_depth AS p_max_tree_depth,
+                       p.max_tree_nodes AS p_max_tree_nodes
                        FROM experiments e 
-                       LEFT JOIN parameters p ON e.id = p.parent
                        LEFT JOIN generations g ON e.id = g.parent
+                       LEFT JOIN parameters p ON e.id = p.parent
                        WHERE g.end = 0 
                        AND e.error_exctype IS NULL''')
 
     cursor.execute(r'''CREATE TEMP VIEW IF NOT EXISTS experimentFinalStat AS
-                   SELECT * 
+                   SELECT * ,
+                   total_time / 60.0 AS total_time_min
                    FROM experiments e 
                    LEFT JOIN parameters p ON e.id = p.parent
                    LEFT JOIN generations g ON e.id = g.parent
@@ -143,7 +149,7 @@ defaults.table = {
         "min_color": "red!70!yellow!80!white",
         "max_color": "green!70!lime",
     },
-    "total_row": "ranks",  # Data to put in last row of table; none, ranks
+    "total_row": "ranks",  # Data to put in last row of table; none, ranks, ranks+pvalues
     "number_format": "%.2f",
     "first_column_title": "Problem",
     "border": {"top", "bottom"},
@@ -160,17 +166,7 @@ defaults.analyzer = {
     "novalue": float("nan"),  # value inserted in table when query returns none
 }
 
-plot_parameters = {
-    "chvatal_diet": ParameterSet(),
-    "facility_location": ParameterSet(),
-    "queens1": ParameterSet(),
-    "queens2": ParameterSet(),
-    "queens3": ParameterSet(),
-    "queens4": ParameterSet(),
-    "queens5": ParameterSet(),
-    "steinerbaum": ParameterSet(),
-    "tsp": ParameterSet(),
-}
+plot_parameters = defaultdict(ParameterSet)
 
 series_parameters = {
     "SS": ParameterSet({}, {
@@ -275,6 +271,58 @@ series_parameters = {
         "mark=": "diamond*",
         "mark options=": "{fill=green!80!lime, scale=0.6, solid}",
     }),
+
+    "chvatal_diet": ParameterSet({}, {
+        "draw=": "magenta",
+        "mark=": "triangle*",
+        "mark options=": "{fill=magenta, scale=0.6, solid}",
+    }),
+    "facility_location": ParameterSet({}, {
+        "draw=": "magenta",
+        "mark=": "asterisk",
+        "mark options=": "{fill=magenta, scale=0.6, solid}",
+    }),
+    "queens1": ParameterSet({}, {
+        "draw=": "magenta",
+        "mark=": "diamond*",
+        "mark options=": "{fill=magenta, scale=0.6, solid}",
+    }),
+    "queens2": ParameterSet({}, {
+        "draw=": "cyan",
+        "dashed": "",
+        "mark=": "triangle*",
+        "mark options=": "{fill=cyan, scale=0.6, solid}",
+    }),
+    "queens3": ParameterSet({}, {
+        "draw=": "cyan",
+        "dashed": "",
+        "mark=": "asterisk",
+        "mark options=": "{fill=cyan, scale=0.6, solid}",
+    }),
+    "queens4": ParameterSet({}, {
+        "draw=": "cyan",
+        "dashed": "",
+        "mark=": "diamond*",
+        "mark options=": "{fill=cyan, scale=0.6, solid}",
+    }),
+    "queens5": ParameterSet({}, {
+        "draw=": "green!80!lime",
+        "densely dotted": "",
+        "mark=": "triangle*",
+        "mark options=": "{fill=green!80!lime, scale=0.6, solid}",
+    }),
+    "steinerbaum": ParameterSet({}, {
+        "draw=": "green!80!lime",
+        "densely dotted": "",
+        "mark=": "asterisk",
+        "mark options=": "{fill=green!80!lime, scale=0.6, solid}",
+    }),
+    "tsp": ParameterSet({}, {
+        "draw=": "green!80!lime",
+        "densely dotted": "",
+        "mark=": "diamond*",
+        "mark options=": "{fill=green!80!lime, scale=0.6, solid}",
+    }),
 }
 
 
@@ -343,6 +391,7 @@ class Statistics:
         if name in map:
             return map[name]
 
+        name = str(name).replace("_", "\\_")
         return name
 
     def save(self, filename=None):
@@ -427,7 +476,7 @@ class Plot(Statistics):
                    %(main)s
               \end{tikzpicture}
               ''' % dict(data="\n".join(r"\pgfplotstableread{%s}{\dataTable%s}" % (self.serialize_data(self.plots[plot_id][series], params),
-                                                                                   self.escape_name(plot_id + series)) for series in
+                                                                                   self.escape_name(str(plot_id) + str(series))) for series in
                                         self.plots[plot_id]),
                          main=self.get_axis(plot_id, params),
                          cf=self.get_cf_axes(plot_id, params))
@@ -598,7 +647,7 @@ class Plot(Statistics):
             "8": "eight",
             "9": "nine",
             "-": "hyphen",
-            "_": "lowline",
+            "_": "low",
         }
         return functools.reduce(lambda x, y: x.replace(y, map[y]), map, name)
 
@@ -657,7 +706,7 @@ class Table(Statistics):
             is_conclusive = False
 
         heatmap = ''
-        if params.table["heatmap"] is not None and data[0][y_idx] is not None:
+        if params.table["heatmap"] is not None and data[0][y_idx] is not None and not math.isnan(data[0][y_idx]):
             h_params = params.table["heatmap"]
             transform = h_params["transform"] if "transform" in h_params else lambda x: x
             float_intensity = (transform(data[0][y_idx]) - h_params["min"]) / (h_params["max"] - h_params["min"]) * 100
@@ -677,7 +726,7 @@ class Table(Statistics):
 
         out = "$%s$" % out
 
-        if params.table["cfmode"] == "none":
+        if params.table["cfmode"] == "none" or data[0][yMax_idx] is None or math.isnan(data[0][yMax_idx]):
             out = heatmap + out
         elif params.table["cfmode"] == "pm":
             out += r"%s&%s{\tiny$\pm %s$}" % (heatmap, heatmap, self.format_number(0.5 * (float(data[0][yMax_idx]) - float(data[0][yMin_idx])), params))
@@ -696,14 +745,14 @@ class Table(Statistics):
 
         return out
 
-    def format_number(self, number, params):
-        if number is None:
+    def format_number(self, number, params, magnitude_only_for_over=1.0e4):
+        if number is None or math.isnan(number):
             return ""
         number = float(number)
-        if abs(number) > 1.0e4 and not math.isinf(number):
+        if abs(number) > magnitude_only_for_over and not math.isinf(number):
             return "%s10^{%d}" % (r"-1\times" if number < 0.0 else "", int(round(math.log10(abs(number)))))
         elif math.isinf(number):
-            return "\infty"
+            return "\\infty"
         return params.table["number_format"] % number
 
     def get_row(self, plot_id, params):
@@ -716,12 +765,18 @@ class Table(Statistics):
 
     def get_footer(self, params):
         out = ''
-        if params.table["total_row"] == "ranks":
+        if params.table["total_row"] is not None:
+            out += '\hline%\n'
+        if params.table["total_row"] is not None and params.table["total_row"].startswith("ranks"):
             columns = dict(none=1, pm=2, bar=1, both=3)[params.table["cfmode"]]
             ranks = self.get_ranks(params)
-            out += r'''\hline%%
-                    Rank:&%(ranks)s\\
-                ''' % dict(ranks="&".join(r"\multicolumn{%d}{c}{%s}" % (columns, self.format_number(r, params)) for r in ranks))
+            out += r'''Rank:&%(ranks)s\\
+                ''' % dict(ranks="&".join(r"\multicolumn{%d}{c}{$%s$}" % (columns, self.format_number(r, params)) for r in ranks))
+        if params.table["total_row"] is not None and params.table["total_row"].endswith("pvalues"):
+            columns = dict(none=1, pm=2, bar=1, both=3)[params.table["cfmode"]]
+            pvalues = self.get_signed_rank_pvalues(params)
+            out += r'''p-value:&%(pvalues)s\\
+                ''' % dict(pvalues="&".join(r"\multicolumn{%d}{c}{$%s$}" % (columns, "\mathbf{%s}" % self.format_number(p, params) if p is not None and p < 0.05 else self.format_number(p, params)) for p in pvalues))
         out += r'''
             %(border_bottom)s
             \end{tabular}
@@ -731,12 +786,27 @@ class Table(Statistics):
     def get_ranks(self, params):
         ranks = [0.0] * len(list(self.plots.values())[0])
         for (plot_id, series) in self.plots.items():
-            tmp_ranks = [float(self.format_number(float(s["data"][0][s["header"].index("y")]), params)) for s in series.values()]
+            tmp_ranks = [float(self.format_number(float(s["data"][0][s["header"].index("y")]), params, 1E300)) for s in series.values()]
             tmp_ranks = [abs(r - params.analyzer["best"]) for r in tmp_ranks]
             tmp_ranks = scipy.stats.rankdata(tmp_ranks)
             ranks = map(sum, zip(ranks, tmp_ranks))
         ranks = [r / float(len(self.plots)) for r in ranks]
         return ranks
+
+    def get_signed_rank_pvalues(self, params):
+        ranks = self.get_ranks(params)
+        best_rank_idx = ranks.index(min(ranks))
+        X = np.empty((len(self.plots), len(list(self.plots.values())[0])), dtype=np.double)
+        for i, (plot_id, series) in enumerate(self.plots.items()):
+            X[i] = [float(self.format_number(float(s["data"][0][s["header"].index("y")]), params, 1E300)) for s in series.values()]
+
+        pvalues = [None] * X.shape[1]
+        for i in range(len(pvalues)):
+            if i == best_rank_idx:
+                continue
+            stat, pvalue = scipy.stats.wilcoxon(X[:,best_rank_idx], X[:,i])
+            pvalues[i] = pvalue
+        return pvalues
 
     def get_full_document(self):
         params = expand(defaults, self.params)
@@ -860,7 +930,23 @@ queries = {
             WHERE
                 EXPERIMENT_NAME = :series
                 AND PROBLEM = :plot_id
-                AND TRAINING_SIZE IN (53, 92, 300)  -- no problem has more than one of these values
+                AND TRAINING_SIZE IN (53, 92, 400)  -- no problem has more than one of these values
+            GROUP BY
+                gen
+            ORDER BY
+                gen
+        ''',
+    "generational_avg_fixed":
+        r'''SELECT
+                gen AS x,
+                AVG(`:criterion`) AS y,
+                AVG(`:criterion`) - 1.959963985 * SQRT((AVG(`:criterion` * `:criterion`) - AVG(`:criterion`) * AVG(`:criterion`))/CAST(COUNT(`:criterion`) AS REAL)) AS yMin,
+                AVG(`:criterion`) + 1.959963985 * SQRT((AVG(`:criterion` * `:criterion`) - AVG(`:criterion`) * AVG(`:criterion`))/CAST(COUNT(`:criterion`) AS REAL)) AS yMax
+            FROM experimentStat
+            WHERE
+                EXPERIMENT_NAME = '700x3'
+                AND PROBLEM = :series
+                AND TRAINING_SIZE IN (53, 92, 400)  -- no problem has more than one of these values
             GROUP BY
                 gen
             ORDER BY
@@ -882,10 +968,10 @@ queries = {
                 WHERE
                     e1.EXPERIMENT_NAME = :series
                     AND e1.PROBLEM = :plot_id
-                    AND e1.TRAINING_SIZE IN (53, 92, 300)  -- no problem has more than one of these values
+                    AND e1.TRAINING_SIZE IN (53, 92, 400)  -- no problem has more than one of these values
                     AND e2.EXPERIMENT_NAME = :series
                     AND e2.PROBLEM = :plot_id
-                    AND e2.TRAINING_SIZE IN (53, 92, 300)  -- no problem has more than one of these values
+                    AND e2.TRAINING_SIZE IN (53, 92, 400)  -- no problem has more than one of these values
                     AND e1.TOTAL_TIME >= e2.TOTAL_TIME
                 GROUP BY
                     e1.id, e1.gen, e2.id
@@ -905,8 +991,20 @@ queries = {
             FROM experimentFinalStat
             WHERE
                 PROBLEM = :plot_id
-                AND EXPERIMENT_NAME = :series
-                AND TRAINING_SIZE IN (53, 92, 300)  -- no problem has more than one of these values
+                AND EXPERIMENT_NAME = CASE :series WHEN 'GECS' THEN '700x3' ELSE :series END
+                AND TRAINING_SIZE IN (53, 92, 400)  -- no problem has more than one of these values
+            LIMIT 1
+        ''',
+    "final_frac_fixed":
+        r'''SELECT
+                SUM(CAST(`:criterion` AS REAL))/COUNT(*) AS y,
+                SUM(CAST(`:criterion` AS REAL))/COUNT(*) - 1.959963985 * SQRT((SUM(CAST(`:criterion` AS REAL))/COUNT(*) * (1.0-SUM(CAST(`:criterion` AS REAL))/COUNT(*)))/CAST(COUNT(*) AS REAL)) AS yMin,
+                SUM(CAST(`:criterion` AS REAL))/COUNT(*) + 1.959963985 * SQRT((SUM(CAST(`:criterion` AS REAL))/COUNT(*) * (1.0-SUM(CAST(`:criterion` AS REAL))/COUNT(*)))/CAST(COUNT(*) AS REAL)) AS yMax
+            FROM experimentFinalStat
+            WHERE
+                PROBLEM = :plot_id
+                AND EXPERIMENT_NAME = :experiment_name
+                AND TRAINING_SIZE IN (53, 92, 400)  -- no problem has more than one of these values
             LIMIT 1
         ''',
     "final_avg":
@@ -918,9 +1016,39 @@ queries = {
             FROM experimentFinalStat
             WHERE
                 PROBLEM = :plot_id
-                AND TRAINING_SIZE = :series
-                AND EXPERIMENT_NAME = '700x5'
+                AND TRAINING_SIZE = (CASE WHEN :plot_id = 'queens1' and :series = 100 THEN 92 WHEN :plot_id = 'steinerbaum' AND :series = 100 THEN 53 ELSE :series END)
+                AND EXPERIMENT_NAME = '700x3'
             LIMIT 1
+        ''',
+    "optimal_gen":
+        r'''SELECT
+                AVG(`:criterion`) AS y,
+                AVG(`:criterion`) - 1.959963985 * SQRT((AVG(`:criterion` * `:criterion`) - AVG(`:criterion`) * AVG(`:criterion`))/CAST(COUNT(`:criterion`) AS REAL)) AS yMin,
+                AVG(`:criterion`) + 1.959963985 * SQRT((AVG(`:criterion` * `:criterion`) - AVG(`:criterion`) * AVG(`:criterion`))/CAST(COUNT(`:criterion`) AS REAL)) AS yMax
+            FROM experimentStat es
+            WHERE
+                PROBLEM = :plot_id
+                AND TRAINING_SIZE = :series
+                AND EXPERIMENT_NAME = '700x3'
+                AND best_phenotype = (SELECT best_phenotype FROM experimentFinalStat efs WHERE efs.id = es.id)
+            ORDER BY
+                gen ASC
+            LIMIT 1
+        ''',
+    "profile":
+        r'''SELECT
+                training_size AS x,
+                AVG(`:criterion`) AS y,
+                AVG(`:criterion`) - 1.959963985 * SQRT((AVG(`:criterion` * `:criterion`) - AVG(`:criterion`) * AVG(`:criterion`))/CAST(COUNT(`:criterion`) AS REAL)) AS yMin,
+                AVG(`:criterion`) + 1.959963985 * SQRT((AVG(`:criterion` * `:criterion`) - AVG(`:criterion`) * AVG(`:criterion`))/CAST(COUNT(`:criterion`) AS REAL)) AS yMax
+            FROM experimentFinalStat
+            WHERE
+                PROBLEM = :series--:plot_id
+                AND EXPERIMENT_NAME = '700x3'
+            GROUP BY 
+                x
+            ORDER BY 
+                x
         ''',
 }
 
@@ -929,7 +1057,7 @@ def main():
     db = prepare_db("../results/results.sqlite")
 
     problems = ["chvatal_diet", "facility_location", "queens1", "queens2", "queens3", "queens4", "queens5", "steinerbaum", "tsp"]
-    training_sizes = {p: [100, 200, 300, 400, 500] for p in problems}
+    training_sizes = {p: [100, 200, 300, 400, 500, 600, 700] for p in problems}
     training_sizes["queens1"] = [92]
     training_sizes["steinerbaum"] = [53]
 
@@ -946,7 +1074,7 @@ def main():
     series['tuning2'] += ["%sx%s" % (pop, t) for pop in ps for t in ts]
 
     # scaling
-    series['scaling'] += [100, 200, 300, 400, 500]
+    series['scaling'] += [100, 200, 300, 400, 500, 600, 700]
     problems_scaling = [p for p in problems if p not in {"queens1", "steinerbaum"}]
 
     p_plot = ParameterSet(
@@ -969,6 +1097,36 @@ def main():
             "xlabel=": "Generations"
         })
 
+    p_profile = expand(p_plot, ParameterSet(
+        axis={
+            "xmin=": 100,
+            "xmax=": 700,
+            "xlabel=": "$|X|$"
+        }
+    ))
+
+    p_plot_runtime = expand(p_plot, ParameterSet(
+        axis={
+            "ymin=": 1,
+            "ymax=": 25000,
+            "ymode=": "log",
+            "ylabel=": "Mean runtime errors"
+        }
+    ))
+
+    p_plot_tree = expand(p_plot, ParameterSet(
+        analyzer={
+            "plot_id_x": 0.67,
+            "ymax_percentile": 100.0,
+            "ymax_cf_percentile": 99.0,
+        },
+        axis={
+            "ymin=": 0,
+            "ymax=": "",
+            "ylabel=": "Mean"
+        }
+    ))
+
     p_time = expand(p_plot, ParameterSet(
         plot={
             "mark repeat=": 15,
@@ -984,11 +1142,11 @@ def main():
     p_table = ParameterSet(
         analyzer={
             "best": 1.0,
-            "novalue": -1.0,
+            "novalue": -1.0
         },
         table={
             "heatmap": {
-                "min": 0.4,
+                "min": 0.55,
                 "max": 1.0,
                 "min_color": "red!70!yellow!80!white",
                 "max_color": "green!70!lime",
@@ -996,34 +1154,122 @@ def main():
             "cfmode": "bar",
             "barcffullheight": 0.1,
             "number_format": "%.2f",
-            "first_column_title": "\\hspace*{-0.1em}Problem\\hspace*{-0.25em}"
+            "first_column_title": "\\hspace*{-0.1em}Problem\\hspace*{-0.25em}",
+            "total_row": "ranks+pvalues"
         }
     )
+
+    p_table_cmp = expand(p_table, ParameterSet(
+        table={
+            "heatmap": {
+                "min": 0.0,
+                "max": 1.0,
+                "min_color": "red!70!yellow!80!white",
+                "max_color": "green!70!lime",
+            },
+        }
+    ))
+
+    p_gen = expand(p_table, ParameterSet(
+        table={
+            "heatmap": {
+                "min": 30,
+                "max": 60,
+                "max_color": "red!80!white",
+                "min_color": "green!70!lime",
+            },
+            "barcffullheight": 2.0,
+            "number_format": "%.1f",
+            "total_row": None,
+            "first_column_title": "\\hspace*{-0.1em}Problem\\textbackslash$|X|$\\hspace*{-0.25em}",
+        }
+    ))
+
+    p_table_time = expand(p_table, ParameterSet(
+        analyzer={
+            "novalue": float("nan")
+        },
+        table={
+            "heatmap": {
+                "min": 15,
+                "max": 400,
+                "max_color": "red!80!white",
+                "min_color": "green!70!lime",
+            },
+            "barcffullheight": 20.0,
+            "number_format": "%.1f",
+            "total_row": None,
+            "first_column_title": "\\hspace*{-0.1em}Problem\\textbackslash$|X|$\\hspace*{-0.25em}",
+        }
+    ))
+
+    p_table_fitness = expand(p_table, ParameterSet(
+        table={
+            "total_row": None,
+            "first_column_title": "\\hspace*{-0.1em}Problem\\textbackslash$|X|$\\hspace*{-0.25em}",
+        }
+    ))
+
+    p_table_opt = expand(p_table, ParameterSet(
+        analyzer={
+            "best": None
+        },
+        table={
+            "heatmap": {
+                "min": 0.0,
+                "max": 1.0,
+                "min_color": "red!70!yellow!80!white",
+                "max_color": "green!70!lime",
+            },
+            "barcffullheight": 0.2,
+            "total_row": None
+        }
+    ))
+
+    p_table_a = expand(p_table, ParameterSet(
+        table={
+            "first_column_title": "\\hspace*{-0.1em}\\textsc{(A)} Problem\\hspace*{-0.25em}",
+        }
+    ))
+
+    p_table_b = expand(p_table, ParameterSet(
+        table={
+            "first_column_title": "\\hspace*{-0.1em}\\textsc{(B)} Problem\\hspace*{-0.25em}",
+        }
+    ))
 
     plots = []
 
     # plots.append(Plot(db, "time_avg", {"criterion": "best_fitness"}, p_time, problems, series["tuning"]))
     # plots.append(Plot(db, "time_avg", {"criterion": "best_fitness"}, p_time, problems, series["tuning2"]))
 
-    plots.append(Plot(db, "generational_avg", {"criterion": "best_fitness"}, p_plot, problems, series["tuning"]))
-    plots.append(Plot(db, "generational_avg", {"criterion": "best_fitness"}, p_plot, problems, series["tuning2"]))
+    # plots.append(Plot(db, "generational_avg", {"criterion": "best_fitness"}, p_plot, problems, series["tuning"]))
+    # plots.append(Plot(db, "generational_avg", {"criterion": "best_fitness"}, p_plot, problems, series["tuning2"]))
 
-    plots.append(Table(db, "final_avg_fixed", {"criterion": "best_fitness"}, p_table, problems, series["tuning"]))
-    plots.append(Table(db, "final_avg_fixed", {"criterion": "best_fitness"}, p_table, problems, series["tuning2"]))
-    plots.append(Table(db, "final_avg_fixed", {"criterion": "test_fitness"}, p_table, problems, series["tuning"]))
-    plots.append(Table(db, "final_avg_fixed", {"criterion": "test_fitness"}, p_table, problems, series["tuning2"]))
+    plots.append(Table(db, "final_avg_fixed", {"criterion": "best_fitness"}, p_table_a, problems, series["tuning"]))
+    plots.append(Table(db, "final_avg_fixed", {"criterion": "best_fitness"}, p_table_b, problems, series["tuning2"]))
+    plots.append(Table(db, "final_avg_fixed", {"criterion": "test_fitness"}, p_table_a, problems, series["tuning"]))
+    plots.append(Table(db, "final_avg_fixed", {"criterion": "test_fitness"}, p_table_b, problems, series["tuning2"]))
 
-    plots.append(RTable(db, "final_avg_fixed", {"criterion": "best_fitness"}, p_table, problems, series["tuning"]))
-    plots.append(RTable(db, "final_avg_fixed", {"criterion": "best_fitness"}, p_table, problems, series["tuning2"]))
-    plots.append(RTable(db, "final_avg_fixed", {"criterion": "test_fitness"}, p_table, problems, series["tuning"]))
-    plots.append(RTable(db, "final_avg_fixed", {"criterion": "test_fitness"}, p_table, problems, series["tuning2"]))
+    plots.append(RTable(db, "final_avg_fixed", {"criterion": "best_fitness"}, p_table_a, problems, series["tuning"]))
+    plots.append(RTable(db, "final_avg_fixed", {"criterion": "best_fitness"}, p_table_b, problems, series["tuning2"]))
+    plots.append(RTable(db, "final_avg_fixed", {"criterion": "test_fitness"}, p_table_a, problems, series["tuning"]))
+    plots.append(RTable(db, "final_avg_fixed", {"criterion": "test_fitness"}, p_table_b, problems, series["tuning2"]))
 
-    # plots.append(Table(db, "final_avg", {"criterion": "best_fitness"}, p_table, problems_scaling, series["scaling"]))
-    # plots.append(Table(db, "final_avg", {"criterion": "best_fitness"}, p_table, problems_scaling, series["scaling"]))
-    # plots.append(Table(db, "final_avg", {"criterion": "test_fitness"}, p_table, problems_scaling, series["scaling"]))
-    # plots.append(Table(db, "final_avg", {"criterion": "test_fitness"}, p_table, problems_scaling, series["scaling"]))
-    #
-    # plots.append(Plot(db, "generational_avg", {"criterion": "best_fitness"}, p_plot, problems_scaling, series["scaling"]))
+    plots.append(Table(db, "final_avg", {"criterion": "best_fitness"}, p_table_fitness, problems_scaling, series["scaling"]))
+    plots.append(Table(db, "final_avg", {"criterion": "test_fitness"}, p_table_fitness, problems_scaling, series["scaling"]))
+    plots.append(Table(db, "final_avg", {"criterion": "runtime_error"}, p_table_time, problems_scaling, series["scaling"]))
+    plots.append(Table(db, "final_avg", {"criterion": "invalids"}, p_table_time, problems_scaling, series["scaling"]))
+    plots.append(Table(db, "final_avg", {"criterion": "total_time_min"}, p_table_time, problems, series["scaling"]))
+    plots.append(Table(db, "optimal_gen", {"criterion": "gen"}, p_gen, problems_scaling, series["scaling"]))
+
+    plots.append(Plot(db, "generational_avg_fixed", {"criterion": "runtime_error"}, p_plot_runtime, [""], problems))
+    plots.append(Plot(db, "generational_avg_fixed", {"criterion": "total_time"}, p_plot_runtime, [""], problems))
+    plots.append(Plot(db, "generational_avg_fixed", {"criterion": "CAST(`:plot_id` AS REAL)"}, p_plot_tree, ["ave_genome_length","max_genome_length","ave_used_codons","max_used_codons","ave_tree_depth","max_tree_depth","ave_tree_nodes","max_tree_nodes","best_fitness"], problems, "generational_tree_stats"))
+    plots.append(Plot(db, "profile", {"criterion": "test_fitness"}, p_profile, [""], problems_scaling))
+
+    plots.append(Table(db, "final_avg_fixed", {"criterion": "test_fitness"}, p_table_cmp, problems, ["GECS", "OCCALS", "ESOCCS"]))
+    plots.append(Table(db, "final_frac_fixed", {"criterion": "optimal_`:series`_match=1", "experiment_name": "OCCALS"}, p_table_opt, problems, ["Value", "Solution"], "final_frac_fixed_optimal_occals"))
 
     db.close()
     runner = Runner(plots)

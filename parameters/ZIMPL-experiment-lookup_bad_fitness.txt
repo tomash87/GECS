@@ -1,17 +1,12 @@
 TEST_SIZE:              2000
 CACHE:                  True
 LOOKUP_BAD_FITNESS:     True
-CODON_SIZE:             10000
 CROSSOVER_PROBABILITY:  0.9
 GENERATIONS:            60
 MAX_GENOME_LENGTH:      200
-INITIALISATION:         PI_grow
-INVALID_SELECTION:      False
 MAX_INIT_TREE_DEPTH:    8
 MAX_TREE_DEPTH:         10
 FITNESS_FUNCTION:       ZIMPL
-REPLACEMENT:            generational
-SELECTION:              tournament
 VERBOSE:                True
 SAVE_ALL:               False
 SAVE_PLOTS:             False
