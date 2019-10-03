@@ -2,7 +2,7 @@
 #
 # Generic formulation of the Travelling Salesmen Problem
 #
-#set V   := { read "tsp.dat" as "<1s>" comment "#" };
+#set V   := { read "ztsp.dat" as "<1s>" comment "#" };
 set V   := {"Sylt", "Flensburg", "Neumunster", "Husum", "Schleswig", "Ausacker", "Rendsburg", "Lubeck", "Westerland", "Segeberg"};
 set E   := { <i,j> in V * V with i < j };
 set P[] := powerset(V \ { ord(V,1,1) });
