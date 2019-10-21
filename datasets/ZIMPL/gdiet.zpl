@@ -10,10 +10,10 @@
 
 set CAT := {"kcal", "protein", "fat", "sodium"};
 param minNutr[CAT] := <"kcal"> 1800, <"protein"> 91, <"fat"> 0, <"sodium"> 0;
-param maxNutr[CAT] := <"kcal"> 2200, <"protein"> 1E10, <"fat"> 65, <"sodium"> 1779;
+param maxNutr[CAT] := <"kcal"> 2200, <"protein"> 1E6, <"fat"> 65, <"sodium"> 1779;
 
 set FOOD := {"hamburger", "chicken", "hot dog", "fries", "macaroni", "pizza", "salad", "milk", "ice cream"};
-set DIARY := {"milk", "ice cream"};
+# set DIARY := {"milk", "ice cream"};
 # param diaryUB := 6;
 param cost[FOOD] := <"hamburger"> 2.49, <"chicken"> 2.89, <"hot dog"> 1.50, <"fries"> 1.89, <"macaroni"> 2.09, <"pizza"> 1.99, <"salad"> 2.49, <"milk"> 0.89, <"ice cream"> 1.59;
 
@@ -31,7 +31,7 @@ param nutr[FOOD * CAT] :=
 |"ice cream"|   330,        8,   10,    180 |;
 
 # Create decision variables for the foods to buy
-var buy[FOOD] real >= 0;
+var buy[FOOD] real >= 0 <= 1E6;
 
 # The objective is to minimize the costs
 minimize cost:

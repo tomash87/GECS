@@ -2,6 +2,7 @@ import runpy
 from collections import defaultdict
 from subprocess import PIPE
 
+from numpy.random.mtrand import RandomState
 from psutil import Popen
 import pandas as pd
 import numpy as np
@@ -26,8 +27,10 @@ class Interpreter:
         self.lp_filename = name_noext + ".lp"
         zpl_mtime = os.path.getmtime(zpl_filename)
 
-        py_process = Popen([Interpreter.zimpl_path, "-v0", "-tpy", zpl_filename], cwd=working_dir, stderr=PIPE) if not os.path.exists(self.py_filename) or zpl_mtime > os.path.getmtime(self.py_filename) else None
-        lp_process = Popen([Interpreter.zimpl_path, "-v0", "-l99", "-tlp", zpl_filename], cwd=working_dir, stderr=PIPE) if not os.path.exists(self.lp_filename) or zpl_mtime > os.path.getmtime(self.lp_filename) else None
+        py_process = Popen([Interpreter.zimpl_path, "-v0", "-tpy", zpl_filename], cwd=working_dir, stderr=PIPE) if not os.path.exists(self.py_filename) or zpl_mtime > os.path.getmtime(
+            self.py_filename) else None
+        lp_process = Popen([Interpreter.zimpl_path, "-v0", "-l99", "-tlp", zpl_filename], cwd=working_dir, stderr=PIPE) if not os.path.exists(self.lp_filename) or zpl_mtime > os.path.getmtime(
+            self.lp_filename) else None
 
         self.unlink_files = unlink_files
 
@@ -90,10 +93,10 @@ class Interpreter:
     def optimize(self):
         return self.lp_interpreter.optimize()
 
-    def sample_positive(self, n: int):
+    def sample_positive(self, n: int, method: str, budget: int = 1000, convert_to_int: bool = False, seed: int = None):
         '''Samples positive examples using solver. Distribution of examples is unknown except that all are positive.
         This method does not work unless model contains integer variables.'''
-        return self.lp_interpreter.sample_positive(n)
+        return self.lp_interpreter.sample_positive(n, method, budget, convert_to_int, seed)
 
     def is_satisfied(self, X: pd.DataFrame):
         return self.lp_interpreter.is_satisfied(X, self.program)
@@ -111,7 +114,7 @@ class Interpreter:
         globals = __import__("itertools", {}, {}, "*").__dict__
         globals["sprod"] = lambda s, r=1: ("".join(p) for p in globals["product"](s, repeat=r))
         globals["spermut"] = lambda s, r=None: ("".join(p) for p in globals["permutations"](s, r=r))
-        globals["rule_exists"] = lambda nonterm: nonterm in output
+        globals["rule_exists"] = lambda nonterm, min_count=1: nonterm in output and len(output[nonterm]) >= min_count
         globals.update({"sets": self.program.sets, "vardefs": self.program.vardefs, "params": self.program.params})
 
         lines = grammar.split("\n")
@@ -134,10 +137,14 @@ class Interpreter:
                         if len(parts) > 0:
                             last_rule = parts[0].strip()
                         output[last_rule].append(parts[-1].strip())
+                elif "::=" in line:
+                    parts = line.split("::=")
+                    if len(parts) > 0:
+                        output[parts[0].strip()].append(parts[-1].strip())
                 else:
                     output_grammar += line + "\n"
             except Exception as e:
-                print(e, "in grammar line %d" % (lineno+1))
+                print(e, "in grammar line %d" % (lineno + 1))
                 raise e
 
         output_grammar = self.remove_singular_rules(output_grammar, output)
@@ -168,6 +175,9 @@ class Interpreter:
 
 
 class LP_interpreter:
+    pinf = float("inf")
+    ninf = float("-inf")
+    max_fails = 5
     gurobi_env = Env("")
 
     def __init__(self, lp_filename, vars):
@@ -188,19 +198,34 @@ class LP_interpreter:
         else:
             return None
 
+    def sample_positive(self, n: int, method: str, budget: int, convert_to_int: bool, seed: int = None):
+        if method == 'bc':
+            return self.sample_positive_branch_and_cut(n, convert_to_int)
+        elif method == 'har':
+            return self.sample_positive_hit_and_run(n, budget, seed)
+        raise Exception("Unrecognized method: %s" % method)
 
-    def sample_positive(self, n: int):
-        '''Samples positive examples using solver. Distribution of examples is unknown except that all are positive.
-        This method does not work unless model contains integer variables.'''
+    def sample_positive_branch_and_cut(self, n: int, convert_to_int: bool):
+        """Samples positive examples using solver. Distribution of examples is unknown except that all are positive.
+        This method does not work unless model contains integer variables."""
         model = read(self.lp_filename, LP_interpreter.gurobi_env)
         model.Params.PoolSearchMode = 2
         model.Params.PoolSolutions = n  # we want at least n feasible solutions
         model.Params.SolutionLimit = n  # we want no more than n feasible solutions
 
-        model.optimize()
-
         gurobi_vars = [model.getVarByName(v) for v in self.vars if model.getVarByName(v) is not None]
+        continuous_vars = set()
+        if convert_to_int:
+            for v in gurobi_vars:
+                if v.VType == GRB.CONTINUOUS:
+                    continuous_vars.add(v)
+                    v.VType = GRB.INTEGER
+            model.update()
+
         vars = [v.varName for v in gurobi_vars]
+        milp = any(v.VType in "BI" for v in gurobi_vars)
+
+        model.optimize()
 
         if model.Status in Interpreter.feasible_status:
             sol_count = model.SolCount
@@ -211,14 +236,190 @@ class LP_interpreter:
                 for j in range(Xv.shape[1]):
                     v = gurobi_vars[j]
                     assert X.columns[j] == gurobi_vars[j]
-                    Xv[i, j] = round(v.Xn) if v.VType in "BI" else v.Xn
+                    val = v.Xn if milp else v.X
+                    Xv[i, j] = round(val) if v.VType in "BI" else val
 
             if X.shape[0] < n:
                 print("Warning: feasible region consists of %d unique solutions; %d requested." % (X.shape[0], n), file=sys.stderr)
         else:
             X = pd.DataFrame(columns=vars, index=pd.RangeIndex(start=0, stop=0), dtype=np.double)
         assert X.shape[0] <= n, X.shape
+
+        if convert_to_int:
+            for v in continuous_vars:
+                v.VType = GRB.CONTINUOUS
+            model.update()
+
         return X
+
+    def sample_positive_hit_and_run(self, n: int, budget: int, seed: int = None):
+        """Samples uniformly distributed positive examples from feasible region using Hit-and-Run algorithm."""
+        if seed is not None:
+            random_state = np.random.get_state()
+            np.random.set_state(RandomState(seed))
+
+        fails = 0
+
+        model: Model = read(self.lp_filename, LP_interpreter.gurobi_env)
+        model.Params.PoolSolutions = 1  # do not use solution pool
+
+        gurobi_vars = [model.getVarByName(v) for v in self.vars if model.getVarByName(v) is not None]
+        vars = [v.varName for v in gurobi_vars]
+        int_vars = {v: v.VType for v in gurobi_vars if v.VType != GRB.CONTINUOUS}
+        assert len(vars) == len(gurobi_vars)
+        # optimization: call once/allocate memory once
+        len_vars = len(vars)
+        len_vars_tuple = (len_vars,)
+        len_int_vars = len(int_vars)
+
+        def relax_ints():
+            for v in int_vars.keys():
+                v.VType = GRB.CONTINUOUS
+
+        def restore_ints():
+            for v, t in int_vars.items():
+                v.VType = t
+
+        source_point = np.empty(len_vars_tuple, dtype=np.double)
+        source_point = LP_interpreter.find_extreme_point(model, gurobi_vars, source_point)
+
+        if source_point is None:
+            return pd.DataFrame(columns=vars, index=pd.RangeIndex(start=0, stop=0), dtype=np.double)
+
+        def handle_new_fail():
+            nonlocal fails, source_point
+            fails += 1
+            if fails >= LP_interpreter.max_fails:
+                # start over with new random point
+                fails = 0
+                source_point = LP_interpreter.find_extreme_point(model, gurobi_vars, source_point)
+                assert source_point is not None
+
+        X = pd.DataFrame(columns=vars, index=pd.RangeIndex(start=0, stop=n), dtype=np.double)
+        Xv = X.values
+
+        # create auxiliary delta and diff variables
+        _lambda = model.addVar(LP_interpreter.ninf, LP_interpreter.pinf, 0.0, GRB.CONTINUOUS, "_lambda")
+        delta_variables = [model.addVar(LP_interpreter.ninf, LP_interpreter.pinf, 0.0, GRB.CONTINUOUS, v.VarName + "_DELTA") for v in gurobi_vars]
+        diff_variables = [model.addVar(LP_interpreter.ninf, LP_interpreter.pinf, 0.0, GRB.CONTINUOUS, v.VarName + "_DIFF") for v in gurobi_vars]
+
+        random_point = np.empty(len_vars_tuple, dtype=np.double)
+
+        # optimization: allocate memory once
+        on_line_constraints = [None] * len_vars
+        distance_diff_constraints = [None] * len_vars
+        distance_delta_constraints = [None] * len_vars
+        sum_delta_variables = quicksum(delta_variables)
+        dup_matrix = np.empty((n, len_vars), dtype=np.bool)
+        dup_vector = np.empty(n, dtype=np.bool)
+
+        i = 0
+        while i < n and budget > 0:
+            budget -= 1
+
+            random_direction = np.random.uniform(-1.0, 1.0, len_vars_tuple)
+            for j, v in enumerate(gurobi_vars):
+                on_line_constraints[j] = model.addConstr(v, GRB.EQUAL, source_point[j] + random_direction[j] * _lambda)
+
+            # get bounds by maximizing and minimizing
+            relax_ints()
+
+            # maximize
+            model.setObjective(_lambda, GRB.MAXIMIZE)
+            model.optimize()
+            if model.Status not in Interpreter.feasible_status:
+                lambda_max = 0.0
+            elif model.Status == GRB.UNBOUNDED:
+                lambda_max = 1e6
+            else:
+                assert model.Status in Interpreter.feasible_status
+                assert np.all([(abs(source_point[j] + random_direction[j] * _lambda.X - v.X) < 1e-6 for j, v in enumerate(gurobi_vars))])
+                lambda_max = _lambda.X
+
+            # minimize
+            model.ModelSense = GRB.MINIMIZE
+            model.optimize()
+            if model.Status not in Interpreter.feasible_status:
+                lambda_min = 0.0
+            elif model.Status == GRB.UNBOUNDED:
+                lambda_min = -1e6
+            else:
+                assert model.Status in Interpreter.feasible_status
+                assert np.all([(abs(source_point[j] + random_direction[j] * _lambda.X - v.X) < 1e-6 for j, v in enumerate(gurobi_vars))])
+                lambda_min = _lambda.X
+
+            restore_ints()
+
+            # drop extra constraints
+            model.remove(on_line_constraints)
+
+            # the first time lambda_min == lambda_max may be the case where source_point is brand new
+            if fails > 0 and lambda_min == lambda_max:
+                handle_new_fail()
+                continue
+            # elif lambda_min != lambda_max:
+            #     print("lambda_min: %f, lambda_max: %f" % (lambda_min, lambda_max))
+
+            # draw a random point on this line
+            r = np.random.uniform(lambda_min, lambda_max)
+            np.multiply(r, random_direction, out=random_point)
+            np.add(source_point, random_point, out=random_point)
+
+            if len_int_vars > 0:
+                # find the closest feasible point
+                # use delta variables to measure distance of a feasible solution to random_point
+                for j, v in enumerate(gurobi_vars):
+                    distance_diff_constraints[j] = model.addConstr(diff_variables[j], GRB.EQUAL, v - random_point[j])
+                    distance_delta_constraints[j] = model.addGenConstrAbs(delta_variables[j], diff_variables[j])
+
+                # minimize distance
+                model.setObjective(sum_delta_variables, GRB.MINIMIZE)
+                model.optimize()
+                assert model.Status in Interpreter.feasible_status
+                assert np.all(dv.X >= -1e-6 for dv in delta_variables)
+
+                # solution to this model is our example
+                for j, v in enumerate(gurobi_vars):
+                    random_point[j] = round(v.X) if v.VType in "BI" else v.X
+
+                # clean up
+                model.remove(distance_diff_constraints)
+                model.remove(distance_delta_constraints)
+
+            if np.equal(Xv, random_point, out=dup_matrix).all(1, out=dup_vector).any():
+                handle_new_fail()
+            else:
+                fails = 0
+                Xv[i] = random_point
+                source_point[:] = random_point
+                # print("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\bProgress: %d/%d" % (i, n), end="")
+                i += 1
+
+        if i < n:
+            # budget exceeded; shrink X
+            print("budget exceeded")
+            X = X[:i]
+
+        if seed is not None:
+            np.random.set_state(random_state) # return previous state of the random generator
+
+        # print("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", end="")
+        return X
+
+    @staticmethod
+    def find_extreme_point(model: Model, gurobi_vars: list, source_point: np.ndarray):
+        # random objective
+        obj = quicksum(np.random.uniform(-1.0, 1.0) * v for v in gurobi_vars)
+
+        model.setObjective(obj, GRB.MINIMIZE)
+        model.optimize()
+        if model.Status in Interpreter.infeasible_status:
+            return None
+
+        for i, v in enumerate(gurobi_vars):
+            source_point[i] = round(v.X) if v.VType in "BI" else v.X
+
+        return source_point
 
     def is_satisfied(self, X: pd.DataFrame, py_program=None):
         if list(X.columns) == len(self.vars) and py_program is not None:  # if no auxiliary variables
@@ -247,6 +448,7 @@ class LP_interpreter:
             assert not out[i] or model.SolCount > 0
 
         return out
+
 
 LP_interpreter.gurobi_env.setParam(GRB.Param.LogToConsole, 0)
 LP_interpreter.gurobi_env.setParam(GRB.Param.Threads, 1)

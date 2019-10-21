@@ -1,4 +1,5 @@
 from libc.math cimport fabs
+from libc.math cimport log
 cimport cython
 
 @cython.initializedcheck(False)
@@ -7,7 +8,7 @@ cimport cython
 @cython.cdivision(True)
 @cython.embedsignature(True)
 def precision(const double[:, :] Xv, const double[:, :] Pv):
-    cdef double threshold = 0.1 * Xv.shape[1]
+    cdef double threshold = Xv.shape[1] / log(Xv.shape[0])
     cdef int i, j, k
     cdef int tp = 0
     cdef double denominator
@@ -19,7 +20,7 @@ def precision(const double[:, :] Xv, const double[:, :] Pv):
             sum = 0.0
             for k in range_k:
                 denominator = fabs(Pv[i, k]) + fabs(Xv[j, k])
-                if denominator > 0.0:
+                if denominator > 1e-6:
                     sum += fabs(Pv[i, k] - Xv[j, k]) / denominator
             if sum <= threshold:
                 tp += 1

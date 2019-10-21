@@ -18,17 +18,34 @@ set N := {1 to 9};
 param s := sqrt(max(N));
 set S[<n> in N] := {<i, j> in {floor((n-1)/s) * s + 1 to (floor((n-1)/s)+1) * s} * {((n-1) mod s) * s + 1 to (((n-1) mod s)+1) * s} };
 # initial grid with empty fields (denoted by 0)
+
+# original grid from Gurobi example
+#param grid[N * N] :=
+#   | 1, 2, 3, 4, 5, 6, 7, 8, 9|
+#| 1| 0, 2, 8, 4, 7, 6, 3, 0, 0|
+#| 2| 0, 0, 0, 8, 3, 9, 0, 2, 0|
+#| 3| 7, 0, 0, 5, 1, 2, 0, 8, 0|
+#| 4| 0, 0, 1, 7, 9, 0, 0, 4, 0|
+#| 5| 3, 0, 0, 0, 0, 0, 0, 0, 0|
+#| 6| 0, 0, 9, 0, 0, 0, 1, 0, 0|
+#| 7| 0, 5, 0, 0, 8, 0, 0, 0, 0|
+#| 8| 0, 0, 6, 9, 2, 0, 0, 0, 5|
+#| 9| 0, 0, 2, 6, 4, 5, 0, 0, 8|;
+
+# empty grid (to obtain all feasible solutions)
 param grid[N * N] :=
    | 1, 2, 3, 4, 5, 6, 7, 8, 9|
-| 1| 0, 2, 8, 4, 7, 6, 3, 0, 0|
-| 2| 0, 0, 0, 8, 3, 9, 0, 2, 0|
-| 3| 7, 0, 0, 5, 1, 2, 0, 8, 0|
-| 4| 0, 0, 1, 7, 9, 0, 0, 4, 0|
-| 5| 3, 0, 0, 0, 0, 0, 0, 0, 0|
-| 6| 0, 0, 9, 0, 0, 0, 1, 0, 0|
-| 7| 0, 5, 0, 0, 8, 0, 0, 0, 0|
-| 8| 0, 0, 6, 9, 2, 0, 0, 0, 5|
-| 9| 0, 0, 2, 6, 4, 5, 0, 0, 8|;
+| 1| 0, 0, 0, 0, 0, 0, 0, 0, 0|
+| 2| 0, 0, 0, 0, 0, 0, 0, 0, 0|
+| 3| 0, 0, 0, 0, 0, 0, 0, 0, 0|
+| 4| 0, 0, 0, 0, 0, 0, 0, 0, 0|
+| 5| 0, 0, 0, 0, 0, 0, 0, 0, 0|
+| 6| 0, 0, 0, 0, 0, 0, 0, 0, 0|
+| 7| 0, 0, 0, 0, 0, 0, 0, 0, 0|
+| 8| 0, 0, 0, 0, 0, 0, 0, 0, 0|
+| 9| 0, 0, 0, 0, 0, 0, 0, 0, 0|;
+
+
 
 # Create our 3-D array of model variables
 # Fix variables associated with cells whose values are pre-specified
@@ -38,18 +55,21 @@ var vars[<i, j, v> in N * N * N] integer >= (if grid[i,j] == v then 1 else 0 end
 
 # Each cell must take one value
 subto one:
-    forall <i, j> in N * N:
-        sum <v> in N: vars[i, j, v] == 1;
+    forall <i> in N:
+        forall <j> in N:
+            sum <v> in N: vars[i, j, v] == 1;
 
 # Each value appears once per row
 subto unique_row:
-    forall <i, v> in N * N:
-        sum <j> in N: vars[i, j, v] == 1;
+    forall <i> in N:
+        forall <v> in N:
+            sum <j> in N: vars[i, j, v] == 1;
 
 # Each value appears once per column
 subto unique_col:
-    forall <j, v> in N * N:
-        sum <i> in N: vars[i, j, v] == 1;
+    forall <j> in N:
+        forall <v> in N:
+            sum <i> in N: vars[i, j, v] == 1;
 
 # Each value appears once per subgrid
 subto subgrid:

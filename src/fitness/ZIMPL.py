@@ -48,20 +48,22 @@ class ZIMPL(base_ff):
 
         training_size = cast_int(params.get("TRAINING_SIZE"))
         test_size = cast_int(params.get("TEST_SIZE"))
+        validation_size = cast_int(params.get("VALIDATION_SIZE"))
 
-        self.training_set = Evaluator("%s/%s_training.csv.bz2" % (dataset_dir, problem_name), training_size)
-        self.test_set = Evaluator("%s/%s_test.csv.bz2" % (dataset_dir, problem_name), test_size)
+        self.training_set = Evaluator("%s/%s_training.csv" % (dataset_dir, problem_name), training_size)
+        self.test_set = Evaluator("%s/%s_test.csv" % (dataset_dir, problem_name), test_size)
+        self.validation_set = Evaluator("%s/%s_validation.csv" % (dataset_dir, problem_name), validation_size)
 
-        self.training_test = True
-        self.vardefs = list(self.ground_truth_program.vardefs.keys())
-        self.sets = list(self.ground_truth_program.sets.keys())
-        self.params = list(self.ground_truth_program.params.keys())
+        # self.vardefs = list(self.ground_truth_program.vardefs.keys())
+        # self.sets = list(self.ground_truth_program.sets.keys())
+        # self.params = list(self.ground_truth_program.params.keys())
 
         self.default_fitness = 0.0
         self.tmp_file_handle, self.tmp_filename = mkstemp(".zpl")
 
         statistics["GROUND_TRUTH_TRAINING_FITNESS"] = self.training_set.fitness(self.ground_truth_interpreter, self.ground_truth_phenotype)
         statistics["GROUND_TRUTH_TEST_FITNESS"] = self.test_set.fitness(self.ground_truth_interpreter, self.ground_truth_phenotype)
+        statistics["GROUND_TRUTH_VALIDATION_FITNESS"] = self.validation_set.fitness(self.ground_truth_interpreter, self.ground_truth_phenotype)
 
     def load_template(self):
         with open(self.zimpl_ground_truth_filename) as f:
@@ -78,6 +80,8 @@ class ZIMPL(base_ff):
             data = self.training_set
         elif dist == "test":
             data = self.test_set
+        elif dist == "validation":
+            data = self.validation_set
         else:
             raise ValueError("Unknown dist: " + dist)
 
@@ -164,6 +168,7 @@ class ZIMPL(base_ff):
         generation.update({k: v for k, v in statistics.items() if not k.startswith("GROUND")})
         generation["best_phenotype"] = params["FITNESS_FUNCTION"].format_program(trackers.best_ever.phenotype)
         generation["test_fitness"] = params["FITNESS_FUNCTION"].evaluate(trackers.best_ever, dist="test")
+        generation["validation_fitness"] = params["FITNESS_FUNCTION"].evaluate(trackers.best_ever, dist="validation")
         generation["end"] = end
         if end:
             ZIMPL.experiment.save(True)
@@ -208,7 +213,7 @@ class Evaluator:
 
     def precision(self, interpreter):
         assert "class" not in self.data.columns or self.data["class"].all(), self.data
-        P: pd.DataFrame = interpreter.sample_positive(self.data.shape[0])
+        P: pd.DataFrame = interpreter.sample_positive(self.data.shape[0], "har", 5 * self.data.shape[0], -13)  # fixed seed makes results repeatable
         if P.shape[1] < self.data.shape[1]:
             for c in self.data.columns:
                 if c not in P.columns:

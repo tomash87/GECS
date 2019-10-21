@@ -1,9 +1,7 @@
 # Based on https://www.gurobi.com/documentation/8.1/examples/workforce1_py.html by Gurobi Optimization, LLC
 #
 # Assign workers to shifts; each worker may or may not be available on a
-# particular day. If the problem cannot be solved, use IIS to find a set of
-# conflicting constraints. Note that there may be additional conflicts besides
-# what is reported via IIS.
+# particular day.
 
 set SHIFTS := {"Mon1", "Tue2", "Wed3", "Thu4", "Fri5", "Sat6", "Sun7",
 "Mon8", "Tue9", "Wed10", "Thu11", "Fri12", "Sat13", "Sun14"};

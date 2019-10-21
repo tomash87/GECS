@@ -61,8 +61,9 @@ minimize total_flow:
 
 # Arc-capacity constraints
 subto arc_capacity:
-    forall <i, j> in NODES * NODES:
-        sum <c> in COMMODITIES: flow[c, i, j] <= capacity[i, j];
+    forall <i> in NODES:
+        forall <j> in NODES:
+            sum <c> in COMMODITIES: flow[c, i, j] <= capacity[i, j];
 
 # Flow-conservation constraints
 subto flow_conservation:

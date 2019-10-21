@@ -106,23 +106,25 @@ class CompleteDetector:
 
 def main():
     seeds = range(0, 15)
-    prob = ["chvatal_diet", "facility_location", "queens1", "queens2", "queens3", "queens4", "queens5", "steinerbaum", "tsp"]
+    prob = ["acube32", "acube52", "asimplex32", "asimplex52",
+            "gdiet", "gfacility", "gnetflow", "gsudoku", "gworkforce1",
+            "zdiet", "zfacility", "zqueens1", "zqueens2", "zqueens3", "zqueens4", "zqueens5", "zsteinerbaum", "ztsp"]
     training_sizes = {p: [100, 200, 300, 400, 500, 600, 700] for p in prob}
     training_sizes["queens1"] = [92]
     training_sizes["steinerbaum"] = [53]
 
     cx = {"S": "--crossover subtree", "F2": "--crossover fixed_twopoint", "V1": "--crossover variable_onepoint"}
     mt = {"S": "--mutation subtree", "C": "--mutation int_flip_per_codon", "I": "--mutation int_flip_per_ind"}
-    ps = {"300": "--population_size 300", "500": "--population_size 500", "700": "--population_size 700"}
+    ps = {"250/120": "--population_size 250 --generations 120", "500/60": "--population_size 500 --generations 60", "750/40": "--population_size 750 --generations 40"}
     ts = {"3": "--tournament_size 3", "5": "--tournament_size 5", "7": "--tournament_size 7"}
-    td = {"10": "--max_tree_depth 10", "11": "--max_tree_depth 11", "12": "--max_tree_depth 12"}
+    td = {"13": "--max_tree_depth 13", "14": "--max_tree_depth 14", "15": "--max_tree_depth 15"}
     id = {"7": "--max_init_tree_depth 7", "8": "--max_init_tree_depth 8", "9": "--max_init_tree_depth 9"}
 
     settings = {'tuning': {}, 'scaling': {}}
     problems = {'tuning': {}, 'scaling': {}}
     # tuning pass 1: cx * mt
     # if c+m in {"SI", "SC"}
-    settings['tuning'].update({c + m: r"%s %s --population_size 500 --tournament_size 5" % (cc, mc) for c, cc in cx.items() for m, mc in mt.items() if c+m not in {"SI", "SC"}})
+    settings['tuning'].update({c + m: r"%s %s --population_size 500 --generations 60 --tournament_size 5" % (cc, mc) for c, cc in cx.items() for m, mc in mt.items() if c+m not in {"SI", "SC"}})
     problems['tuning'].update({p: "--grammar ZIMPL-dedicated-%s.bnf --extra_parameters PROBLEM='%s', TRAINING_SIZE=%d" % (p, p, min(400, max(training_sizes[p])))
                               for p in prob})
 
@@ -133,9 +135,9 @@ def main():
     settings['tuning'].update({"%sx%s" % (t, i): r"%s %s --population_size 700 --tournament_size 3 --crossover subtree --mutation subtree" % (tc, ic) for t, tc in td.items() for i, ic in id.items()})
 
     # scaling
-    settings['scaling'].update({"700x3": r"--population_size 700 --tournament_size 3 --crossover subtree --mutation subtree"})
-    problems['scaling'].update({p + str(t): "--grammar ZIMPL-dedicated-%s.bnf --extra_parameters PROBLEM='%s', TRAINING_SIZE=%d" % (p, p, t)
-                                for p in prob for t in training_sizes[p] if t != 400})
+    # settings['scaling'].update({"750/40x3": r"--population_size 750 --generations 40 --tournament_size 3 --crossover subtree --mutation subtree"})
+    # problems['scaling'].update({p + str(t): "--grammar ZIMPL-dedicated-%s.bnf --extra_parameters PROBLEM='%s', TRAINING_SIZE=%d" % (p, p, t)
+    #                             for p in prob for t in training_sizes[p] if t != 400})
 
     # pool = ProcessPool()
     pool = SlurmPool()

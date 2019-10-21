@@ -1,86 +1,117 @@
 # Minimum values of parameters to represent ground truth models:
-# (Note that the grammar was modified after calculating these values)
-# Problem           | TreeDepth | GenomeLen | TempVars
-# chvatal_diet      | 7         | 13        | 2
-# facility_location | 9         | 39        | 2         updated 2018-12-28
-# queens1           | 7         | 28        | 2         updated 2018-12-29
-# queens2           | 6         | 13        | 4
-# queens3           | 8         | 18        | 4
-# queens4           | 10        | 17        | 4
-# queens5           | 10        | ??        | 3         updated 2019-01-02
-# steinerbaum       | 7         | ??        | 3         updated 2019-01-02
-# tsp               | 8         | ??        | 3         updated 2019-01-02
-# * - if reordering constraints
+# (Note that the grammar was modified after calculating some of these values)
+# Problem               | TreeDepth | GenomeLen | TempVars
+# zdiet                 | 7         | 19        | 2         updated 2019-10-14
+# zfacility             | 10        | 51        | 2         updated 2019-10-14
+# zqueens1              | 7         | 34        | 2         updated 2019-10-14
+# zqueens2              | 6         | 17        | 4         updated 2019-10-14
+# zqueens3              | 9         | 25        | 4         updated 2019-10-14
+# zqueens4              | 7         | 21        | 4         updated 2019-10-14
+# zqueens5              | 13        | 144       | 3         updated 2019-10-14
+# zsteinerbaum          | 8         | 38        | 3         updated 2019-10-14
+# ztsp                  | 8         | 71        | 3         updated 2019-10-14
+# acube32               | 8         | ??        | 2         updated 2019-10-11
+# acube52               | 8         | ??        | 2         updated 2019-10-11
+# asimplex32            | 10        | ??        | 3         updated 2019-10-11
+# asimplex52            | 10        | ??        | 3         updated 2019-10-11
+# gdiet                 | 8         |           | 2         updated 2019-10-14
+# gfacility             | 8         |           | 2         updated 2019-10-14
+# gnetflow              | 6         | 44        | 2         updated 2019-10-14
+# gsudoku               | 10        | 59        | 3         updated 2019-10-14
+# gworkforce1           | 5         | 15        | 2         updated 2019-10-14
+#
 #
 # (*TV = "ijklmn"   # temporary variables *)
 # (*type_range      = lambda _min, _max: ((a, t) for a in range(_min, _max+1) for t in sprod("NS", a))*)
 # (*set_exists      = lambda at, t, min_count=1: sum(tp in at and _["value_types"] == t for _ in sets.values() for tp in spermut(_["arg_types"])) >= min_count*)
-# (*set_seq_exists  = lambda t, l_max: any(t in p for l in range(1, l_max+1) for tuple in permutations(sets, l) for p in spermut("".join(sets[s]["value_types"]) for s in tuple) if all(any(sets[s]["arg_types"] in vtp for vtp in spermut("".join(sets[s2]["value_types"]) for s2 in tuple[:i-1])) for i, s in enumerate(tuple) if i > 0))*)
+# (*set_seq_exists  = lambda t, l_max: any(frozenset(t) <= frozenset("".join(sets[s]["value_types"] for s in tuple)) for l in range(1, l_max+1) for tuple in product(sets, repeat=l) if all(frozenset(sets[s]["arg_types"]) <= frozenset("".join(sets[s2]["value_types"] for s2 in tuple[:i-1])) for i, s in enumerate(tuple) if i > 0))*)
 # (*set_va_exists   = lambda at, _min, _max, min_count=1: sum(vt in at and _min <= _["value_arity"] < _max for _ in sets.values() for vt in spermut(_["arg_types"])) >= min_count*)
-# (*var_exists      = lambda at, min_count=1, domain=None: sum(tp in at and (domain is None or _["domain"] == domain) for _ in vardefs.values() for tp in spermut(_["arg_types"])) >= min_count*)
+# (*var_exists      = lambda at, min_count=1, domain=None: sum(frozenset(_["arg_types"]) <= frozenset(at) and (domain is None or _["domain"] == domain) for _ in vardefs.values()) >= min_count*)
 # (*param_exists    = lambda at, min_count=1: sum(tp in at for _ in params.values() for tp in spermut(_["arg_types"])) >= min_count*)
 <subto>
-<subto>                 ::='subto name_seq:' <constr1>';\n' |
-                           'subto name_seq:' <constr1>';\n'<subto>
+<subto>                 ::='subto name_seq:' <constr1>';\n'
+<subto>                 ::='subto name_seq:' <constr1>';\n'<subto>
 
 <cmp>                   ::='<='|'=='|'>='
+<cmp_int>               ::='<'|'=='
 <arithmetic_op>         ::='+'|'-'
 <logic_op>              ::='and'|'xor'
 
 <const0>                ::=0|1|2
 <const>                 ::=1|2|3
-<tmpvN_%(at)s>          ::='%(v)s'                                                                              # (= ({"at": at, "v": TV[v]} for a, at in type_range(1, 4) for v in range(a) if set_seq_exists(at, 2) and at[v] == 'N') =)
-<tmpvS_%(at)s>          ::='%(v)s'                                                                              # (= ({"at": at, "v": TV[v]} for a, at in type_range(1, 4) for v in range(a) if set_seq_exists(at, 2) and at[v] == 'S') =)
-<tmpv_%(at)s>           ::='%(v)s'                                                                              # (= ({"at": at, "v": TV[v]} for a, at in type_range(1, 4) for v in range(a) if set_seq_exists(at, 2)) =)
+<tmpvN_%(at)s>          ::='%(v)s'                                                                              # (= ({"at": at, "v": TV[v]} for a, at in type_range(1, 4) for v in range(a) if set_seq_exists(at, a) and at[v] == 'N') =)
 <set_%(at)s_%(t)s>      ::='%(s)s%(i)s'                                                                         # (= ({"at": at, "t": t, "s": s, "i": "[%s]" % ",".join(i) if i != "" else ""} for a, at in type_range(0, 4) for ia, t in type_range(1, 4-a) for s, _ in sets.items() for tp, i in zip(spermut(at, _["arity"]), spermut(TV[:a], _["arity"])) if set_seq_exists(at, 2) and _["arg_types"] == tp and _["value_types"] == t) =)
-<variable_%(at)s>       ::='%(v)s%(i)s'                                                                         # (= ({"at": at, "v": v, "i": "[%s]" % ",".join(i) if i != "" else ""} for a, at in type_range(1, 4) for v, _ in vardefs.items() for tp, i in zip(spermut(at, _["arity"]), spermut(TV[:a], _["arity"])) if set_seq_exists(at, 2) and _["arg_types"] == tp) =)
-<variableZ_%(at)s>      ::='%(v)s%(i)s'                                                                         # (= ({"at": at, "v": v, "i": "[%s]" % ",".join(i) if i != "" else ""} for a, at in type_range(1, 4) for v, _ in vardefs.items() for tp, i in zip(spermut(at, _["arity"]), spermut(TV[:a], _["arity"])) if set_seq_exists(at, 2) and _["arg_types"] == tp and _["domain"] == "Z") =)
-<param_%(at)s>          ::='%(p)s%(i)s'                                                                         # (= ({"at": at, "p": p, "i": "[%s]" % ",".join(i) if i != "" else ""} for a, at in type_range(1, 4) for p, _ in params.items() for tp, i in zip(spermut(at, _["arity"]), spermut(TV[:a], _["arity"])) if set_seq_exists(at, 2) and _["arg_types"] == tp) =)
+<variable_%(at)s>       ::='%(v)s%(i)s'                                                                         # (= ({"at": at, "v": v, "i": "[%s]" % ",".join(i) if i != "" else ""} for a, at in type_range(1, 4) for v, _ in vardefs.items() for tp, i in zip(spermut(at, _["arity"]), spermut(TV[:a], _["arity"])) if set_seq_exists(at, max(a, 1)) and _["arg_types"] == tp) =)
+<variableZ_%(at)s>      ::='%(v)s%(i)s'                                                                         # (= ({"at": at, "v": v, "i": "[%s]" % ",".join(i) if i != "" else ""} for a, at in type_range(1, 4) for v, _ in vardefs.items() for tp, i in zip(spermut(at, _["arity"]), spermut(TV[:a], _["arity"])) if set_seq_exists(at, max(a, 1)) and _["arg_types"] == tp and _["domain"] == "Z") =)
+<param_%(at)s>          ::='%(p)s%(i)s'                                                                         # (= ({"at": at, "p": p, "i": "[%s]" % ",".join(i) if i != "" else ""} for a, at in type_range(0, 4) for p, _ in params.items() for tp, i in zip(spermut(at, _["arity"]), spermut(TV[:a], _["arity"])) if set_seq_exists(at, max(a, 1)) and _["arg_types"] == tp) =)
 
+<const_or_param_%(at)s> ::=<const>                                                                              # (= ({"at": at} for a, at in type_range(1, 4) if set_seq_exists(at, a)) =)
+<const_or_param_%(at)s> ::=<param_%(at)s>                                                                       # (= ({"at": at} for a, at in type_range(1, 4) if rule_exists("<param_%s>" % at)) =)
 
+<tmpvexprN_%(at)s>      ::=<tmpvN_%(at)s> '*' <tmpvN_%(at)s>                                                    # (= ({"at": at} for a, at in type_range(2, 4) if rule_exists("<tmpvN_%s>" % at, 2)) =)
+<tmpvexprN_%(at)s>      ::=<const_or_param_%(at)s> '*' <tmpvN_%(at)s>                                           # (= ({"at": at} for a, at in type_range(1, 4) if rule_exists("<const_or_param_%s>" % at) and rule_exists("<tmpvN_%s" % at)) =)
+<tmpvexprN_%(at)s>      ::='('<tmpvexprN_%(at)s> '+' <tmpvexprN_%(at)s>')'                                      # (= ({"at": at} for a, at in type_range(1, 4) if rule_exists("<tmpvexprN_%s>" % at)) =)
+<tmpvexprN_%(at)s>      ::='('<tmpvexprN_%(at)s> '-' <const>')'                                                 # (= ({"at": at} for a, at in type_range(1, 4) if rule_exists("<tmpvexprN_%s>" % at)) =)
 
-<constr1>               ::='forall <%(v)s> in '<sexpr__%(t)s>':\n\t'<constr2_%(t)s>                             # (= ({"t": t, "v": ",".join(TV[:va])} for va, t in type_range(1, 2) if set_exists("", t)) =)
+<func_%(at)s>           ::='card('<set_%(at)s_%(t)s>')'                                                         # (= ({"at": at, "t": t} for a, at in type_range(0, 2) for va, t in type_range(1, 2) if rule_exists("<set_%s_%s>" % (at, t))) =)
+<func_%(at)s>           ::='(card('<set_%(at)s_%(t)s>') - '<const>')'                                           # (= ({"at": at, "t": t} for a, at in type_range(0, 1) for va, t in type_range(1, 2) if rule_exists("<set_%s_%s>" % (at, t))) =)
 
-<constr2_%(at)s>        ::='forall <%(v)s> in '<sexpr_%(at)s_%(t)s>':\n\t\t'<constr3_%(at)s%(t)s>               # (= ({"at": at, "t": t, "v": ",".join(TV[a:a+va])} for a, at in type_range(1, 2) for va, t in type_range(1, 2) if set_seq_exists(at, 1) and set_exists(at, t, 1 + (at[-va:] == t)) and var_exists(at+t)) =)
-<constr2_%(at)s>        ::=<sum_%(at)s> <cmp> <cexpr0_%(at)s>                                                   # (= ({"at": at} for a, at in type_range(1, 2) if set_seq_exists(at, 1) and any(set_exists(at, t, 1 + (at == t)) and var_exists(at+t) for va, t in type_range(1, 2))) =)
-<constr2_%(at)s>        ::=<sum_%(at)s> <arithmetic_op> <sum_or_var_%(at)s> <cmp> <cexpr0_%(at)s>               # (= ({"at": at} for a, at in type_range(1, 2) if set_seq_exists(at, 1) and any(set_exists(at, t, 1 + (at == t)) and var_exists(at+t) for va, t in type_range(1, 2))) =)
-<constr2_%(at)s>        ::=<lexpr_%(at)s> <cmp> <cexpr0_%(at)s>                                                 # (= ({"at": at} for a, at in type_range(1, 2) if set_seq_exists(at, 1) and var_exists(at)) =)
-<constr2_%(at)s>        ::=<vabs_%(at)s> <cmp> <cexpr_%(at)s>                                                   # (= ({"at": at} for a, at in type_range(1, 2) if set_seq_exists(at, 1) and (var_exists(at, 2) or var_exists(at) and len(at) >= 2)) =)
-<constr2_%(at)s>        ::=<vif_%(at)s>                                                                         # (= ({"at": at} for a, at in type_range(1, 2) if set_seq_exists(at, 1) and var_exists(at, domain='Z') and any(set_exists(at, t, 1 + (at == t)) and var_exists(at+t) for va, t in type_range(1, 2))) =)
+<cexpr%(0)s_%(at)s>     ::=<const%(0)s>                                                                         # (= ({"at": at, "0": z} for a, at in type_range(0, 4) for z in ["", "0"] if set_seq_exists(at, max(a, 1))) =)
+<cexpr%(0)s_%(at)s>     ::=<param_%(at)s>                                                                       # (= ({"at": at, "0": z} for a, at in type_range(0, 4) for z in ["", "0"] if rule_exists("<param_%s>" % at)) =)
+<cexpr%(0)s_%(at)s>     ::=<tmpvN_%(at)s>                                                                       # (= ({"at": at, "0": z} for a, at in type_range(1, 4) for z in ["", "0"] if rule_exists("<tmpvN_%s>" % at)) =)
+<cexpr%(0)s_%(at)s>     ::=<func_%(at)s>                                                                        # (= ({"at": at, "0": z} for a, at in type_range(0, 4) for z in ["", "0"] if rule_exists("<func_%s>" % at)) =)
+<cexpr0_%(at)s>         ::=<tmpvexprN_%(at)s>                                                                   # (= ({"at": at} for a, at in type_range(1, 4) if rule_exists("<tmpvexprN_%s>" % at)) =)
 
-<constr3_%(at)s>        ::=<lexpr_%(at)s> <cmp> <cexpr0_%(at)s>                                                 # (= ({"at": at} for a, at in type_range(2, 4) if set_seq_exists(at, 2) and var_exists(at)) =)
+<const0_or_tmpvexprN_%(at)s>::=<const0>                                                                         # (= ({"at": at} for a, at in type_range(1, 4) if set_seq_exists(at, max(a, 1))) =)
+<const0_or_tmpvexprN_%(at)s>::=<tmpvexprN_%(at)s>                                                               # (= ({"at": at} for a, at in type_range(1, 4) if rule_exists("<tmpvexprN_%s>" % at)) =)
 
-<sum_%(at)s>            ::='sum <%(v)s> in '<sexpr_%(at)s_%(t)s>':' <coeff_var_%(at)s%(t)s>                     # (= ({"at": at, "t": t, "v": ",".join(TV[a:a+va])} for a, at in type_range(1, 2) for va, t in type_range(1, 2) if set_seq_exists(at, 1) and set_exists(at, t, 1 + (at == t)) and var_exists(at+t)) =)
-<sum_simpl_%(at)s>      ::='sum <%(v)s> in '<set_%(at)s_%(t)s>':' <variable_%(at)s%(t)s>                        # (= ({"at": at, "t": t, "v": ",".join(TV[a:a+va])} for a, at in type_range(1, 2) for va, t in type_range(1, 2) if set_seq_exists(at, 1) and set_exists(at, t, 1 + (at == t)) and var_exists(at+t)) =)
+<with_%(at)s>           ::= <tmpvN_%(at)s> '-' <tmpvN_%(at)s> '==' <tmpvN_%(at)s> '-' <const_or_param_%(at)s>                                                           # (= ({"at": at} for a, at in type_range(3, 3) if rule_exists("<tmpvN_%s>" % at, 3) and rule_exists("<param_%s>" % at)) =)
+<with_%(at)s>           ::= <tmpv%(t)s_%(at)s> <cmp_int> <tmpv%(t)s_%(at)s>                                                                                             # (= ({"at": at, "t": t} for a, at in type_range(3, 3) for t in "NS" if rule_exists("<tmpv%s_%s>" % (t, at), 2)) =)
+<with_%(at)s>           ::= <set_%(at)s_%(t)s> 'inter' <set_%(at)s_%(t)s> '!= {} and (' <set_%(at)s_%(t)s> '\\' <set_%(at)s_%(t)s> ') inter' <set_%(at)s_%(t)s> '!={}'  # (= ({"at": at, "t": t} for a, at in type_range(1, 1) for ia, t in type_range(1, 4-a) if rule_exists("<set_%s_%s>" % (at, t), 3)) =)
+<with_%(at)s>           ::= '<'<tmpv%(t)s_%(at)s>'> in '<set_%(atp)s_%(t)s> <logic_op> '<'<tmpv%(t)s_%(at)s>'> in '<set_%(atp)s_%(t)s>                                  # (= ({"at": at, "atp": at[:-2], "t": t} for a, at in type_range(3, 3) for t in set(sprod(at[-2:], 1)) if rule_exists("<tmpv%s_%s>" % (t, at), 2) and rule_exists("<set_%s_%s>" % (at[:-2], t), 2)) =)
+<with_%(at)s>           ::= '<'<func_%(at)s>'> in {'<const> '..' <func_%(at)s>'}'                                                                                       # (= ({"at": at} for a, at in type_range(1, 1) if rule_exists("<func_%s>" % at) and set_va_exists(at, 1, 99, 2)) =)
+<sexpr_%(at)s_%(t)s>    ::= <set_%(at)s_%(t)s>                                                                                                                          # (= ({"at": at, "t": t} for a, at in type_range(0, 2) for va, t in type_range(1, 2) if rule_exists("<set_%s_%s>" % (at, t))) =)
+<sexpr_%(at)s_%(t)s>    ::= <set_%(at)s_%(t)s> 'with' <with_%(at)s%(t)s>                                                                                                # (= ({"at": at, "t": t} for a, at in type_range(0, 2) for va, t in type_range(1, 2) if rule_exists("<set_%s_%s>" % (at, t)) and rule_exists("<with_%s%s>" % (at, t))) =)
+
+<coeff_var_%(at)s>      ::=<variable_%(at)s>                                                                    # (= ({"at": at} for a, at in type_range(1, 4) if rule_exists("<variable_%s>" % at)) =)
+<coeff_var_%(at)s>      ::=<cexpr_%(at)s> '*' <variable_%(at)s>                                                 # (= ({"at": at} for a, at in type_range(1, 4) if rule_exists("<variable_%s>" % at)) =)
+
+<sum_%(at)s>            ::='sum <%(v)s> in '<sexpr_%(at)s_%(t)s>':' <coeff_var_%(at)s%(t)s>                     # (= ({"at": at, "t": t, "v": ",".join(TV[a:a+va])} for a, at in type_range(1, 2) for va, t in type_range(1, 2) if rule_exists("<sexpr_%s_%s>" % (at, t)) and rule_exists("<coeff_var_%s>" % (at+t))) =)
+<sum_simpl_%(at)s>      ::='sum <%(v)s> in '<set_%(at)s_%(t)s>':' <variable_%(at)s%(t)s>                        # (= ({"at": at, "t": t, "v": ",".join(TV[a:a+va])} for a, at in type_range(0, 2) for va, t in type_range(1, 2) if rule_exists("<set_%s_%s>" % (at, t)) and rule_exists("<variable_%s>" % (at+t))) =)
+<sum_simplZ_%(at)s>     ::='sum <%(v)s> in '<set_%(at)s_%(t)s>':' <variableZ_%(at)s%(t)s>                       # (= ({"at": at, "t": t, "v": ",".join(TV[a:a+va])} for a, at in type_range(0, 2) for va, t in type_range(1, 2) if rule_exists("<set_%s_%s>" % (at, t)) and rule_exists("<variableZ_%s>" % (at+t))) =)
 <sum_or_var_%(at)s>     ::=<sum_%(at)s>                                                                         # (= ({"at": at} for a, at in type_range(1, 2) if rule_exists("<sum_%s>" % at)) =)
-<sum_or_var_%(at)s>     ::=<coeff_var_%(at)s>                                                                   # (= ({"at": at} for a, at in type_range(1, 2) if set_seq_exists(at, 1) and var_exists(at)) =)
+<sum_or_var_%(at)s>     ::=<coeff_var_%(at)s>                                                                   # (= ({"at": at} for a, at in type_range(1, 2) if rule_exists("<coeff_var_%s>" % at)) =)
 
-<lexpr_%(at)s>          ::=<coeff_var_%(at)s>                                                                   # (= ({"at": at} for a, at in type_range(1, 4) if set_seq_exists(at, 2) and var_exists(at)) =)
-<lexpr_%(at)s>          ::=<coeff_var_%(at)s> <arithmetic_op> <coeff_var_%(at)s>                                # (= ({"at": at} for a, at in type_range(1, 4) if set_seq_exists(at, 2) and (var_exists(at, 2) or var_exists(at) and len(at) >= 2)) =)
-<coeff_var_%(at)s>      ::=<variable_%(at)s>                                                                    # (= ({"at": at} for a, at in type_range(1, 4) if set_seq_exists(at, 2) and var_exists(at)) =)
-<coeff_var_%(at)s>      ::=<cexpr_%(at)s> '*' <variable_%(at)s>                                                 # (= ({"at": at} for a, at in type_range(1, 4) if set_seq_exists(at, 2) and var_exists(at)) =)
+<lexpr_%(at)s>          ::=<coeff_var_%(at)s>                                                                   # (= ({"at": at} for a, at in type_range(1, 4) if rule_exists("<coeff_var_%s>" % at)) =)
+<lexpr_%(at)s>          ::=<coeff_var_%(at)s> <arithmetic_op> <coeff_var_%(at)s>                                # (= ({"at": at} for a, at in type_range(1, 4) if rule_exists("<coeff_var_%s>" % at, 2)) =)
 
-<vabs_%(at)s>           ::='vabs('<vexpr_%(at)s>')'                                                             # (= ({"at": at} for a, at in type_range(1, 2) if set_seq_exists(at, 2) and (var_exists(at, 2) or var_exists(at) and len(at) >= 2)) =)
-<vabs_%(at)s>           ::='vabs(vabs('<vexpr_%(at)s>') - '<abs_%(at)s>')'                                      # (= ({"at": at} for a, at in type_range(1, 2) if set_seq_exists(at, 2) and (var_exists(at, 2) or var_exists(at) and len(at) >= 2) and at.count("N") >= 2) =)
-<vexpr_%(at)s>          ::= <variable_%(at)s> <arithmetic_op> <variable_%(at)s>                                 # (= ({"at": at} for a, at in type_range(1, 2) if set_seq_exists(at, 2) and (var_exists(at, 2) or var_exists(at) and len(at) >= 2)) =)
-<abs_%(at)s>            ::='abs('<tmpvN_%(at)s> '-' <tmpvN_%(at)s>')'                                           # (= ({"at": at} for a, at in type_range(1, 2) if set_seq_exists(at, 2) and (var_exists(at, 2) or var_exists(at) and len(at) >= 2) and at.count("N") >= 2) =)
+<sum_or_lexpr_%(at)s>   ::=<sum_simpl_%(at)s>                                                                   # (= ({"at": at} for a, at in type_range(1, 4) if rule_exists("<sum_simpl_%s>" % at)) =)
+<sum_or_lexpr_%(at)s>   ::=<lexpr_%(at)s>                                                                       # (= ({"at": at} for a, at in type_range(1, 4) if rule_exists("<lexpr_%s>" % at)) =)
 
-<vif_%(at)s>            ::='vif' <variableZ_%(at)s> '==' <const0> 'then' <sum_simpl_%(at)s> <cmp> <cexpr0_%(at)s> 'end' # (= ({"at": at} for a, at in type_range(1, 2) if set_seq_exists(at, 2) and var_exists(at, domain='Z') and rule_exists("<sum_simpl_%s>" % at)) =)
+<abs_%(at)s>            ::='abs('<tmpvN_%(at)s> '-' <tmpvN_%(at)s>')'                                           # (= ({"at": at} for a, at in type_range(1, 2) if rule_exists("<tmpvN_%s>" % at, 2)) =)
+<vexpr_%(at)s>          ::= <variableZ_%(at)s> <arithmetic_op> <variableZ_%(at)s>                               # (= ({"at": at} for a, at in type_range(1, 2) if rule_exists("<variableZ_%s>" % at, 2)) =)
+<vabs_%(at)s>           ::='vabs('<vexpr_%(at)s>')'                                                             # (= ({"at": at} for a, at in type_range(1, 2) if rule_exists("<vexpr_%s>" % at)) =)
+<vabs_%(at)s>           ::='vabs(vabs('<vexpr_%(at)s>') - '<abs_%(at)s>')'                                      # (= ({"at": at} for a, at in type_range(1, 2) if rule_exists("<vexpr_%s>" % at) and rule_exists("<abs_%s>" % at)) =)
 
-<func_%(at)s>           ::='card('<set_%(at)s_%(t)s>')'                                                         # (= ({"at": at, "t": t} for a, at in type_range(1, 4) for va, t in type_range(1, 2) if rule_exists("<set_%s_%s>" % (at, t))) =)
-<func_%(at)s>           ::='(card('<set_%(at)s_%(t)s>') - '<const>')'                                           # (= ({"at": at, "t": t} for a, at in type_range(1, 4) for va, t in type_range(1, 2) if rule_exists("<set_%s_%s>" % (at, t))) =)
-<cexpr%(0)s_%(at)s>     ::=<const%(0)s>                                                                         # (= ({"at": at, "0": z} for a, at in type_range(1, 4) for z in ["", "0"] if set_seq_exists(at, 2)) =)
-<cexpr%(0)s_%(at)s>     ::=<param_%(at)s>                                                                       # (= ({"at": at, "0": z} for a, at in type_range(1, 4) for z in ["", "0"] if set_seq_exists(at, 2) and param_exists(at)) =)
-<cexpr%(0)s_%(at)s>     ::=<tmpvN_%(at)s>                                                                       # (= ({"at": at, "0": z} for a, at in type_range(1, 4) for z in ["", "0"] if set_seq_exists(at, 2) and "N" in at) =)
-<cexpr%(0)s_%(at)s>     ::=<func_%(at)s>                                                                        # (= ({"at": at, "0": z} for a, at in type_range(1, 4) for z in ["", "0"] if rule_exists("<func_%s>" % at)) =)
-<const_or_param_%(at)s> ::=<const>                                                                              # (= ({"at": at} for a, at in type_range(1, 4) if set_seq_exists(at, 2)) =)
-<const_or_param_%(at)s> ::=<param_%(at)s>                                                                       # (= ({"at": at} for a, at in type_range(1, 4) if set_seq_exists(at, 2) and param_exists(at)) =)
+<vif_%(at)s>            ::='vif '<variableZ_%(at)s>' == 1 then '<sum_or_lexpr_%(at)s> <cmp> <const0_or_tmpvexprN_%(at)s> 'end' # (= ({"at": at} for a, at in type_range(2, 4) if rule_exists("<variableZ_%s>" % at) and rule_exists("<sum_or_lexpr_%s>" % at)) =)
 
-<with_%(at)s>           ::= <tmpvN_%(at)s> '-' <tmpvN_%(at)s> '==' <tmpvN_%(at)s> '-' <const_or_param_%(at)s>                                                           # (= ({"at": at} for a, at in type_range(3, 3) if set_seq_exists(at, 2) and at.count('N') >= 3 and param_exists(at)) =)
-<with_%(at)s>           ::= <tmpv%(t)s_%(at)s> '==' <tmpv%(t)s_%(at)s>                                                                                                  # (= ({"at": at, "t": t} for a, at in type_range(3, 3) for t in "NS" if set_seq_exists(at, 2) and at.count(t) >= 2) =)
-<with_%(at)s>           ::= <set_%(at)s_%(t)s> 'inter' <set_%(at)s_%(t)s> '!= {} and (' <set_%(at)s_%(t)s> '\\' <set_%(at)s_%(t)s> ') inter' <set_%(at)s_%(t)s> '!={}'  # (= ({"at": at, "t": t} for a, at in type_range(1, 1) for ia, t in type_range(1, 4-a) if set_seq_exists(at, 1) and set_exists(at, t, 3)) =)
-<with_%(at)s>           ::= '<'<tmpv%(t)s_%(at)s>'> in '<set_%(atp)s_%(t)s> <logic_op> '<'<tmpv%(t)s_%(at)s>'> in '<set_%(atp)s_%(t)s>                                  # (= ({"at": at, "atp": at[:-2], "t": t} for a, at in type_range(3, 3) for t in set(sprod(at[-2:], 1)) if set_seq_exists(at, 2) and set_exists(at[:-2], t, 1 + (at[:-2] == t)) and at.count(t) >= 2) =)
-<with_%(at)s>           ::= '<'<func_%(at)s>'> in {'<const> '..' <func_%(at)s>'}'                                                                                     # (= ({"at": at} for a, at in type_range(1, 1) if set_seq_exists(at, 1) and set_va_exists(at, 1, 99, 2)) =)
-<sexpr_%(at)s_%(t)s>    ::= <set_%(at)s_%(t)s>                                                                                                                          # (= ({"at": at, "t": t} for a, at in type_range(0, 2) for va, t in type_range(1, 2) if set_seq_exists(at, 2) and set_exists(at, t)) =)
-<sexpr_%(at)s_%(t)s>    ::= <set_%(at)s_%(t)s> 'with' <with_%(at)s%(t)s>                                                                                                # (= ({"at": at, "t": t} for a, at in type_range(0, 2) for va, t in type_range(1, 2) if set_seq_exists(at, 2) and rule_exists("<with_%s%s>" % (at, t))) =)
+<constr4_%(at)s>        ::=<vif_%(at)s>                                                                         # (= ({"at": at} for a, at in type_range(3, 4) if rule_exists("<vif_%s>" % at)) =)
+
+<constr3_%(at)s>        ::='forall <%(v)s> in '<sexpr_%(at)s_%(t)s>':\n\t\t\t'<constr4_%(at)s%(t)s>             # (= ({"at": at, "t": t, "v": ",".join(TV[a:a+va])} for a, at in type_range(2, 3) for va, t in type_range(1, 2) if rule_exists("<sexpr_%s_%s>" % (at, t)) and rule_exists("<constr4_%s>" % (at+t))) =)
+<constr3_%(at)s>        ::=<lexpr_%(at)s> <cmp> <cexpr0_%(at)s>                                                 # (= ({"at": at} for a, at in type_range(2, 4) if rule_exists("<lexpr_%s>" % at)) =)
+<constr3_%(at)s>        ::=<sum_simpl_%(at)s> <cmp> <cexpr0_%(at)s>                                             # (= ({"at": at} for a, at in type_range(2, 4) if rule_exists("<sum_simpl_%s>" % at)) =)
+<constr3_%(at)s>        ::=<sum_simpl_%(at)s> '-' <sum_simpl_%(at)s> <cmp> <param_%(at)s>                       # (= ({"at": at} for a, at in type_range(2, 4) if rule_exists("<sum_simpl_%s>" % at) and rule_exists("<param_%s>" % at)) =)
+
+<constr2_%(at)s>        ::='forall <%(v)s> in '<set_%(at)s_%(t)s>':\n\t\t'<constr3_%(at)s%(t)s>                 # (= ({"at": at, "t": t, "v": ",".join(TV[a:a+va])} for a, at in type_range(1, 2) for va, t in type_range(1, 2) if rule_exists("<set_%s_%s>" % (at, t)) and rule_exists("<constr3_%s>" % (at+t))) =)
+<constr2_%(at)s>        ::=<sum_%(at)s> <cmp> <cexpr0_%(at)s>                                                   # (= ({"at": at} for a, at in type_range(1, 2) if rule_exists("<sum_%s>" % at)) =)
+<constr2_%(at)s>        ::=<sum_%(at)s> <arithmetic_op> <sum_or_var_%(at)s> <cmp> <cexpr0_%(at)s>               # (= ({"at": at} for a, at in type_range(1, 2) if rule_exists("<sum_%s>" % at) and rule_exists("<sum_or_var_%s>" % at)) =)
+<constr2_%(at)s>        ::=<lexpr_%(at)s> <cmp> <cexpr0_%(at)s>                                                 # (= ({"at": at} for a, at in type_range(1, 2) if rule_exists("<lexpr_%s>" % at)) =)
+<constr2_%(at)s>        ::=<vabs_%(at)s>' >= 1'                                                                 # (= ({"at": at} for a, at in type_range(1, 2) if rule_exists("<vabs_%s>" % at)) =)
+<constr2_%(at)s>        ::=<vif_%(at)s>                                                                         # (= ({"at": at} for a, at in type_range(1, 2) if rule_exists("<vif_%s>" % at)) =)
+
+<constr1>               ::='forall <%(v)s> in '<sexpr__%(t)s>':\n\t'<constr2_%(t)s>                             # (= ({"t": t, "v": ",".join(TV[:va])} for va, t in type_range(1, 2) if rule_exists("<sexpr__%s>" % t) and rule_exists("<constr2_%s>" % t)) =)
+<constr1>               ::=<sum_simplZ_>' >= 1'                                                                 # (= ({} for _ in range(1) if rule_exists("<sum_simplZ_>")) =)
+
+
+
 
