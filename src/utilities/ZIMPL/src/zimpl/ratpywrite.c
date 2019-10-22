@@ -59,7 +59,7 @@ enum SET_RELATION {SET_EQUAL = 0, SET_SUBSET = 1, SET_SUPERSET = 2, SET_DIFFEREN
 
 extern char* strip_extension(char* filename);
 extern const char* strip_path(const char* filename);
-extern const Symbol* symbol_get_all();
+extern const Symbol* symbol_get_all(void);
 
 struct symbol
 {

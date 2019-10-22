@@ -10,7 +10,7 @@ def main():
     for file in os.scandir(base_dir):
         if file.is_file() and re.search(r"\.zpl$", file.name, re.I) is not None:
             print("%s:" % file.name)
-            with Interpreter(file.path, False) as interpreter:
+            with Interpreter(os.path.abspath(file.path), False) as interpreter:
                 name_noext = re.sub(r"\.zpl$", r"", file.path)
 
                 print("Calculating training set...")

@@ -1,4 +1,4 @@
-import runpy
+import runpy, os, re, platform
 from collections import defaultdict
 from subprocess import PIPE
 
@@ -13,7 +13,7 @@ class Interpreter:
     feasible_status = frozenset({GRB.OPTIMAL, GRB.UNBOUNDED, GRB.SOLUTION_LIMIT, GRB.SUBOPTIMAL})
     infeasible_status = frozenset({GRB.INFEASIBLE, GRB.INF_OR_UNBD})
     base_dir = os.path.dirname(__file__)
-    zimpl_path = "%s/../ZIMPL/bin/zimpl" % os.path.dirname(__file__)
+    zimpl_path = os.path.abspath("%s/../ZIMPL/bin/zimpl" % os.path.dirname(__file__) + (".exe" if platform.system() == "Windows" else ""))
     zpl_regex = re.compile(r'\.zpl$', re.I)
     empty_rule_regex = re.compile(r'\s*<\S+>\s*::=\s*(?=\n\s*<\S+>\s*::=|$)')
     code_regex = re.compile(r'\(\*(?P<code>(?!\*\)).*)\*\)')
@@ -392,7 +392,7 @@ class LP_interpreter:
                 fails = 0
                 Xv[i] = random_point
                 source_point[:] = random_point
-                # print("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\bProgress: %d/%d" % (i, n), end="")
+                print("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\bProgress: %d/%d" % (i, n), end="")
                 i += 1
 
         if i < n:
@@ -403,7 +403,7 @@ class LP_interpreter:
         if seed is not None:
             np.random.set_state(random_state) # return previous state of the random generator
 
-        # print("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", end="")
+        print("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", end="")
         return X
 
     @staticmethod
