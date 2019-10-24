@@ -53,7 +53,7 @@ class SlurmPool:
     def execute(self, cmd, arguments, script_filename):
         sbatch = open("./slurm/%s.sh" % script_filename, "w")
         sbatch.write("#!/bin/bash\n")
-        sbatch.write("#SBATCH -p lab-ci,lab-43,lab-44\n")
+        sbatch.write("#SBATCH -p lab-ci\n")
         sbatch.write("#SBATCH -c 1 --mem=1475\n")
         sbatch.write("#SBATCH -t 12:00:00\n")
         sbatch.write("export GRB_LICENSE_FILE=~/gurobi-$(hostname).lic\n")
@@ -105,7 +105,7 @@ class CompleteDetector:
 
 
 def main():
-    seeds = range(0, 15)
+    seeds = range(0, 1)
     prob = ["acube32", "acube52", "asimplex32", "asimplex52",
             "gdiet", "gfacility", "gnetflow", "gsudoku", "gworkforce1",
             "zdiet", "zfacility", "zqueens1", "zqueens2", "zqueens3", "zqueens4", "zqueens5", "zsteinerbaum", "ztsp"]
@@ -115,7 +115,7 @@ def main():
 
     cx = {"S": "--crossover subtree", "F2": "--crossover fixed_twopoint", "V1": "--crossover variable_onepoint"}
     mt = {"S": "--mutation subtree", "C": "--mutation int_flip_per_codon", "I": "--mutation int_flip_per_ind"}
-    ps = {"250/120": "--population_size 250 --generations 120", "500/60": "--population_size 500 --generations 60", "750/40": "--population_size 750 --generations 40"}
+    ps = {"250_120": "--population_size 250 --generations 120", "500_60": "--population_size 500 --generations 60", "750_40": "--population_size 750 --generations 40"}
     ts = {"3": "--tournament_size 3", "5": "--tournament_size 5", "7": "--tournament_size 7"}
     td = {"13": "--max_tree_depth 13", "14": "--max_tree_depth 14", "15": "--max_tree_depth 15"}
     id = {"7": "--max_init_tree_depth 7", "8": "--max_init_tree_depth 8", "9": "--max_init_tree_depth 9"}
@@ -132,7 +132,7 @@ def main():
     settings['tuning'].update({"%sx%s" % (pop, t): r"%s %s --crossover subtree --mutation subtree" % (pc, tc) for pop, pc in ps.items() for t, tc in ts.items()})
 
     # tuning pass 3: td * id
-    settings['tuning'].update({"%sx%s" % (t, i): r"%s %s --population_size 700 --tournament_size 3 --crossover subtree --mutation subtree" % (tc, ic) for t, tc in td.items() for i, ic in id.items()})
+    settings['tuning'].update({"%sx%s" % (t, i): r"%s %s --population_size 750 --generations 40 --tournament_size 3 --crossover subtree --mutation subtree" % (tc, ic) for t, tc in td.items() for i, ic in id.items()})
 
     # scaling
     # settings['scaling'].update({"750/40x3": r"--population_size 750 --generations 40 --tournament_size 3 --crossover subtree --mutation subtree"})

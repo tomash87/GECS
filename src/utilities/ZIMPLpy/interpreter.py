@@ -392,7 +392,7 @@ class LP_interpreter:
                 fails = 0
                 Xv[i] = random_point
                 source_point[:] = random_point
-                print("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\bProgress: %d/%d" % (i, n), end="")
+                # print("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\bProgress: %d/%d" % (i, n), end="")
                 i += 1
 
         if i < n:
@@ -403,7 +403,7 @@ class LP_interpreter:
         if seed is not None:
             np.random.set_state(random_state) # return previous state of the random generator
 
-        print("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", end="")
+        # print("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", end="")
         return X
 
     @staticmethod

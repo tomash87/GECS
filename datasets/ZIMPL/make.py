@@ -29,7 +29,7 @@ def main():
 def generate(interpreter, filename, n, positive_only=True, class_column=False):
     if not os.path.exists(filename):
         if positive_only and not class_column:
-            if "zqueens1" in filename or "zsteinerbaum" in filename:
+            if "zqueens1" in filename or "zsteinerbaum" in filename or "zdiet" in filename:
                 data = interpreter.sample_positive(n, method="bc")
             else:
                 data = interpreter.sample_positive(n, method="har", budget=100000000)  # har
