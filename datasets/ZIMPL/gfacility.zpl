@@ -36,7 +36,7 @@ var open[PLANTS] binary;
 
 # Transportation decision variables: transport[w,p] captures the
 # optimal quantity to transport to warehouse w from plant p
-var transport[WAREHOUSES * PLANTS] real >= 0;
+var transport[WAREHOUSES * PLANTS] real >= 0 <= 1000;
 
 minimize cost:
     sum <p> in PLANTS: fixedCosts[p] * open[p] + sum <w,p> in WAREHOUSES * PLANTS: transCosts[w,p] * transport[w,p];
