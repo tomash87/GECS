@@ -97,7 +97,7 @@
 
 <constr4_%(at)s>        ::=<vif_%(at)s>                                                                         # (= ({"at": at} for a, at in type_range(3, 4) if rule_exists("<vif_%s>" % at)) =)
 
-<constr3_%(at)s>        ::='forall <%(v)s> in '<sexpr_%(at)s_%(t)s>':\n\t\t\t'<constr4_%(at)s%(t)s>             # (= ({"at": at, "t": t, "v": ",".join(TV[a:a+va])} for a, at in type_range(2, 3) for va, t in type_range(1, 2) if rule_exists("<sexpr_%s_%s>" % (at, t)) and rule_exists("<constr4_%s>" % (at+t))) =)
+<constr3_%(at)s>        ::='forall <%(v)s> in '<sexpr_%(at)s_%(t)s>':\n\t\t\t'<constr4_%(at)s%(t)s>             # (= ({"at": at, "t": t, "v": ",".join(TV[a:a+va])} for a, at in type_range(2, 3) for va, t in type_range(1, 1) if rule_exists("<sexpr_%s_%s>" % (at, t)) and rule_exists("<constr4_%s>" % (at+t))) =)
 <constr3_%(at)s>        ::=<lexpr_%(at)s> <cmp> <cexpr0_%(at)s>                                                 # (= ({"at": at} for a, at in type_range(2, 4) if rule_exists("<lexpr_%s>" % at)) =)
 <constr3_%(at)s>        ::=<sum_simpl_%(at)s> <cmp> <cexpr0_%(at)s>                                             # (= ({"at": at} for a, at in type_range(2, 4) if rule_exists("<sum_simpl_%s>" % at)) =)
 <constr3_%(at)s>        ::=<sum_simpl_%(at)s> '-' <sum_simpl_%(at)s> <cmp> <param_%(at)s>                       # (= ({"at": at} for a, at in type_range(2, 4) if rule_exists("<sum_simpl_%s>" % at) and rule_exists("<param_%s>" % at)) =)
