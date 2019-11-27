@@ -113,7 +113,7 @@ param availability[WORKERS * SHIFTS] :=
 # Assignment variables: x[w,s] == 1 if worker w is assigned to shift s.
 # Since an assignment model always produces integer solutions, we use
 # continuous variables and solve as an LP.
-var x[WORKERS * SHIFTS] real >= 0 <= 1;
+var x[<w, s> in WORKERS * SHIFTS] real >= 0 <= availability[w, s];
 
 # The objective is to minimize the total pay costs
 minimize cost:
