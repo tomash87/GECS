@@ -1,6 +1,6 @@
 import runpy, os, re, platform
 from collections import defaultdict
-from subprocess import PIPE
+from subprocess import PIPE, TimeoutExpired
 
 from numpy.random.mtrand import RandomState
 from psutil import Popen
@@ -35,8 +35,13 @@ class Interpreter:
         self.unlink_files = unlink_files
 
         if py_process is not None:
-            py_exit_code = py_process.wait()
-            py_stderr = str(py_process.stderr.read().decode("utf-8"))
+            try:
+                py_exit_code = py_process.wait(timeout=30)
+                py_stderr = str(py_process.stderr.read().decode("utf-8"))
+            except TimeoutExpired:
+                py_process.kill()
+                py_exit_code = -1
+                py_stderr = ""
             if py_exit_code != 0 or len(py_stderr) > 0:
                 raise ValueError("Error in ZIMPL program. Exit code: %d.\n%s" % (py_exit_code, py_stderr))
 
@@ -51,8 +56,13 @@ class Interpreter:
         self.vars = [v for v in self.program.variables.keys() if not v.startswith("__")]  # omit auxiliary variables
 
         if lp_process is not None:
-            lp_exit_code = lp_process.wait()
-            lp_stderr = str(lp_process.stderr.read().decode("utf-8"))
+            try:
+                lp_exit_code = lp_process.wait(timeout=30)
+                lp_stderr = str(lp_process.stderr.read().decode("utf-8"))
+            except TimeoutExpired:
+                lp_process.kill()
+                lp_exit_code = -1
+                lp_stderr = ""
             if lp_exit_code != 0 or len(lp_stderr) > 0:
                 # print(lp_stderr)
                 raise ValueError("Error in ZIMPL program. Exit code: %d.\n%s" % (lp_exit_code, lp_stderr))
