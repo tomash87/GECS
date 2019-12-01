@@ -45,6 +45,9 @@ class Interpreter:
             if py_exit_code != 0 or len(py_stderr) > 0:
                 raise ValueError("Error in ZIMPL program. Exit code: %d.\n%s" % (py_exit_code, py_stderr))
 
+        if os.stat(self.py_filename).st_size > 1048576:
+            raise ValueError("The ZIMPL program transformed to py script exceeded the size limit. The file is %dMB large." % (os.stat(self.py_filename).st_size >> 20))
+
         try:
             module = runpy.run_path(self.py_filename, run_name=__name__)
             self.program = module[os.path.basename(name_noext)]()
@@ -66,6 +69,9 @@ class Interpreter:
             if lp_exit_code != 0 or len(lp_stderr) > 0:
                 # print(lp_stderr)
                 raise ValueError("Error in ZIMPL program. Exit code: %d.\n%s" % (lp_exit_code, lp_stderr))
+
+        if os.stat(self.lp_filename).st_size > 1048576:
+            raise ValueError("The ZIMPL program transformed to LP format exceeded the size limit. The file is %dMB large." % (os.stat(self.lp_filename).st_size >> 20))
 
         self.lp_interpreter = LP_interpreter(self.lp_filename, self.vars)
 
