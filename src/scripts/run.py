@@ -105,7 +105,7 @@ class CompleteDetector:
 
 
 def main():
-    seeds = range(20, 25)
+    seeds = range(0, 25)
     prob = ["acube32", "acube52", "asimplex32", "asimplex52",
             "gdiet", "gfacility", "gnetflow", "gsudoku", "gworkforce1",
             "zdiet", "zfacility", "zqueens1", "zqueens2", "zqueens3", "zqueens4", "zqueens5", "zsteinerbaum", "ztsp"]
