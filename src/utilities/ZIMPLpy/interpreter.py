@@ -1,9 +1,9 @@
 import runpy, os, re, platform
 from collections import defaultdict
-from subprocess import PIPE, TimeoutExpired
+from subprocess import PIPE
 
 from numpy.random.mtrand import RandomState
-from psutil import Popen
+from psutil import Popen, TimeoutExpired
 import pandas as pd
 import numpy as np
 from gurobipy import *
@@ -36,16 +36,18 @@ class Interpreter:
 
         if py_process is not None:
             try:
-                py_exit_code = py_process.wait(timeout=30)
+                py_exit_code = py_process.wait(timeout=20)
                 py_stderr = str(py_process.stderr.read().decode("utf-8"))
             except TimeoutExpired:
                 py_process.kill()
                 py_exit_code = -1
                 py_stderr = ""
+                if lp_process is not None:
+                    lp_process.kill()
             if py_exit_code != 0 or len(py_stderr) > 0:
                 raise ValueError("Error in ZIMPL program. Exit code: %d.\n%s" % (py_exit_code, py_stderr))
 
-        if os.stat(self.py_filename).st_size > 1048576:
+        if os.stat(self.py_filename).st_size > 2097152:
             raise ValueError("The ZIMPL program transformed to py script exceeded the size limit. The file is %dMB large." % (os.stat(self.py_filename).st_size >> 20))
 
         try:
@@ -60,7 +62,7 @@ class Interpreter:
 
         if lp_process is not None:
             try:
-                lp_exit_code = lp_process.wait(timeout=30)
+                lp_exit_code = lp_process.wait(timeout=20)
                 lp_stderr = str(lp_process.stderr.read().decode("utf-8"))
             except TimeoutExpired:
                 lp_process.kill()
@@ -70,7 +72,7 @@ class Interpreter:
                 # print(lp_stderr)
                 raise ValueError("Error in ZIMPL program. Exit code: %d.\n%s" % (lp_exit_code, lp_stderr))
 
-        if os.stat(self.lp_filename).st_size > 1048576:
+        if os.stat(self.lp_filename).st_size > 2097152:
             raise ValueError("The ZIMPL program transformed to LP format exceeded the size limit. The file is %dMB large." % (os.stat(self.lp_filename).st_size >> 20))
 
         self.lp_interpreter = LP_interpreter(self.lp_filename, self.vars)
@@ -279,7 +281,7 @@ class LP_interpreter:
         model: Model = read(self.lp_filename, LP_interpreter.gurobi_env)
         model.Params.PoolSolutions = 1  # do not use solution pool
 
-        gurobi_vars = [model.getVarByName(v) for v in self.vars if model.getVarByName(v) is not None]
+        gurobi_vars = [model.getVarByName(v) for v in self.vars if model.getVarByName(v) is not None] if len(model.getVars()) > 0 else []
         vars = [v.varName for v in gurobi_vars]
         int_vars = {v: v.VType for v in gurobi_vars if v.VType != GRB.CONTINUOUS}
         assert len(vars) == len(gurobi_vars)
@@ -315,9 +317,9 @@ class LP_interpreter:
         Xv = X.values
 
         # create auxiliary delta and diff variables
-        _lambda = model.addVar(LP_interpreter.ninf, LP_interpreter.pinf, 0.0, GRB.CONTINUOUS, "_lambda")
-        delta_variables = [model.addVar(LP_interpreter.ninf, LP_interpreter.pinf, 0.0, GRB.CONTINUOUS, v.VarName + "_DELTA") for v in gurobi_vars]
-        diff_variables = [model.addVar(LP_interpreter.ninf, LP_interpreter.pinf, 0.0, GRB.CONTINUOUS, v.VarName + "_DIFF") for v in gurobi_vars]
+        _lambda = model.addVar(-1e6, 1e6, 0.0, GRB.CONTINUOUS, "_lambda")
+        delta_variables = [model.addVar(0, 1e6, 0.0, GRB.CONTINUOUS, v.VarName + "_DELTA") for v in gurobi_vars]
+        diff_variables = [model.addVar(-1e6, 1e6, 0.0, GRB.CONTINUOUS, v.VarName + "_DIFF") for v in gurobi_vars]
 
         random_point = np.empty(len_vars_tuple, dtype=np.double)
 
@@ -408,7 +410,7 @@ class LP_interpreter:
                 fails = 0
                 Xv[i] = random_point
                 source_point[:] = random_point
-                print("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\bProgress: %d/%d" % (i, n), end="")
+                # print("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\bProgress: %d/%d" % (i, n), end="")
                 i += 1
 
         if i < n:
@@ -419,7 +421,7 @@ class LP_interpreter:
         if seed is not None:
             np.random.set_state(random_state) # return previous state of the random generator
 
-        print("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", end="")
+        # print("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", end="")
         return X
 
     @staticmethod
@@ -427,15 +429,37 @@ class LP_interpreter:
         # random objective
         obj = quicksum(np.random.uniform(-1.0, 1.0) * v for v in gurobi_vars)
 
+        model.Params.InfUnbdInfo = 1
         model.setObjective(obj, GRB.MINIMIZE)
         model.optimize()
         if model.Status in Interpreter.infeasible_status:
+            model.Params.InfUnbdInfo = 0
             return None
+        elif model.Status == GRB.UNBOUNDED:
+            # From https://www.gurobi.com/documentation/8.1/refman/optimization_status_codes.html
+            # Model was proven to be unbounded. Important note: an unbounded status indicates the
+            # presence of an unbounded ray that allows the objective to improve without limit. It
+            # says nothing about whether the model has a feasible solution. If you require information
+            # on feasibility, you should set the objective to zero and reoptimize.
+            unbounded_ray = [v.UnbdRay for v in gurobi_vars]
+            model.Params.InfUnbdInfo = 0
+            model.setObjective(0, GRB.MINIMIZE)
+            model.optimize()
+            _lambda = np.random.uniform(0, 1e6)
+            for i, v in enumerate(gurobi_vars):
+                if v.VType == "C":
+                    source_point[i] = v.X + _lambda * unbounded_ray[i]
+                elif v.VType == "I":
+                    source_point[i] = round(v.X + _lambda * unbounded_ray[i])
+                else:  # B
+                    source_point[i] = round(v.X)
+            return source_point
 
-        for i, v in enumerate(gurobi_vars):
-            source_point[i] = round(v.X) if v.VType in "BI" else v.X
-
-        return source_point
+        else:
+            model.Params.InfUnbdInfo = 0
+            for i, v in enumerate(gurobi_vars):
+                source_point[i] = round(v.X) if v.VType in "BI" else v.X
+            return source_point
 
     def is_satisfied(self, X: pd.DataFrame, py_program=None):
         if list(X.columns) == len(self.vars) and py_program is not None:  # if no auxiliary variables

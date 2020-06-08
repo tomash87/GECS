@@ -1,7 +1,6 @@
 TEST_SIZE:              2000
 VALIDATION_SIZE:        2000
 CACHE:                  True
-MUTATE_DUPLICATES:      True
 CROSSOVER_PROBABILITY:  0.9
 GENERATIONS:            60
 MAX_GENOME_LENGTH:      200
