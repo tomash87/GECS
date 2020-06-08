@@ -1,9 +1,9 @@
 import runpy, os, re, platform
 from collections import defaultdict
-from subprocess import PIPE, TimeoutExpired
+from subprocess import PIPE
 
 from numpy.random.mtrand import RandomState
-from psutil import Popen
+from psutil import Popen, TimeoutExpired
 import pandas as pd
 import numpy as np
 from gurobipy import *
@@ -36,16 +36,18 @@ class Interpreter:
 
         if py_process is not None:
             try:
-                py_exit_code = py_process.wait(timeout=30)
+                py_exit_code = py_process.wait(timeout=20)
                 py_stderr = str(py_process.stderr.read().decode("utf-8"))
             except TimeoutExpired:
                 py_process.kill()
                 py_exit_code = -1
                 py_stderr = ""
+                if lp_process is not None:
+                    lp_process.kill()
             if py_exit_code != 0 or len(py_stderr) > 0:
                 raise ValueError("Error in ZIMPL program. Exit code: %d.\n%s" % (py_exit_code, py_stderr))
 
-        if os.stat(self.py_filename).st_size > 1048576:
+        if os.stat(self.py_filename).st_size > 2097152:
             raise ValueError("The ZIMPL program transformed to py script exceeded the size limit. The file is %dMB large." % (os.stat(self.py_filename).st_size >> 20))
 
         try:
@@ -60,7 +62,7 @@ class Interpreter:
 
         if lp_process is not None:
             try:
-                lp_exit_code = lp_process.wait(timeout=30)
+                lp_exit_code = lp_process.wait(timeout=20)
                 lp_stderr = str(lp_process.stderr.read().decode("utf-8"))
             except TimeoutExpired:
                 lp_process.kill()
@@ -70,7 +72,7 @@ class Interpreter:
                 # print(lp_stderr)
                 raise ValueError("Error in ZIMPL program. Exit code: %d.\n%s" % (lp_exit_code, lp_stderr))
 
-        if os.stat(self.lp_filename).st_size > 1048576:
+        if os.stat(self.lp_filename).st_size > 2097152:
             raise ValueError("The ZIMPL program transformed to LP format exceeded the size limit. The file is %dMB large." % (os.stat(self.lp_filename).st_size >> 20))
 
         self.lp_interpreter = LP_interpreter(self.lp_filename, self.vars)
