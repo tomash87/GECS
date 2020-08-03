@@ -50,19 +50,21 @@ def get_phenotype(problem, lp_format: str):
 
 
 def main():
-    problems = ["chvatal_diet", "facility_location", "queens1", "queens2", "queens3", "queens4", "queens5", "steinerbaum", "tsp"]
+    problems = ["acube32", "acube52", "asimplex32", "asimplex52",
+                "gdiet", "gfacility", "gnetflow", "gworkforce1",
+                "zdiet", "zfacility", "zqueens1", "zqueens2", "zqueens3", "zqueens4", "zqueens5", "zsteinerbaum", "ztsp"]
     training_size = {p: 400 for p in problems}
-    training_size["queens1"] = 92
-    training_size["steinerbaum"] = 53
+    training_size["zqueens1"] = 92
+    training_size["zsteinerbaum"] = 53
 
-    source_db_filename = "../../results/stats.sqlite"
+    source_db_filename = "../../results/OCCALS_for_GECS.sqlite"
     destination_db_filename = "../../results/results.sqlite"
 
     experiment_name = "OCCALS"
 
     source_db_conn = sqlite3.connect(source_db_filename)
     source_cursor = source_db_conn.cursor()
-    source_cursor.execute("SELECT inputFile, trainingDataSize, seed, LPFormat FROM experiments")
+    source_cursor.execute("SELECT inputFile, trainingDataSize, seed, LPFormat FROM experiments WHERE error IS NULL")
 
     destination_db = Database(destination_db_filename)
 

@@ -40,7 +40,8 @@ def main(command_line_args):
     max_b_factor = 0
     
     print("\nBranching factor for each non-terminal:")
-    
+
+    avg_b_factor = 0.0
     for NT in sorted(grammar.non_terminals.keys()):
         
         # Get branching factor for current NT.
@@ -52,8 +53,12 @@ def main(command_line_args):
         # Set maximum branching factor.
         if b_factor > max_b_factor:
             max_b_factor = b_factor
+        avg_b_factor += b_factor
+
+    avg_b_factor /= len(grammar.non_terminals.keys())
         
     print("\nMaximum branching factor of the grammar:", max_b_factor)
+    print("Average branching factor of the grammar:", avg_b_factor)
 
     # Initialise counter for the total number of solutions.
     total_solutions = 0

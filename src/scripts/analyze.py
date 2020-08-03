@@ -769,8 +769,9 @@ class Table(Statistics):
             print("Too many rows (%d) for series %s" % (len(data), series["name"]))
 
         if params.analyzer["best"] is not None and data[0][y_idx] is not None:
-            best_value = min(abs((s["data"][0][y_idx] if s["data"][0][y_idx] is not None else float("NaN")) - params.analyzer["best"]) for s in self.plots[plot_id].values())
-            is_best = abs(data[0][y_idx] - params.analyzer["best"]) == best_value
+            best_value = min(abs((float(self.format_number(s["data"][0][y_idx], params, 1e300)) if s["data"][0][y_idx] is not None else float("NaN")) - params.analyzer["best"])
+                             for s in self.plots[plot_id].values())
+            is_best = abs(float(self.format_number(data[0][y_idx], params, 1e300)) - params.analyzer["best"]) == best_value
         else:
             is_best = False
 
@@ -1079,7 +1080,7 @@ queries = {
             FROM experimentFinalStat
             WHERE
                 PROBLEM = :plot_id
-                AND EXPERIMENT_NAME = CASE :series WHEN '500_60' THEN 'SS' ELSE :series END
+                AND EXPERIMENT_NAME = CASE :series WHEN '500_60' THEN 'V1I' WHEN 'GECS' THEN 'V1I' ELSE :series END
                 AND TRAINING_SIZE IN (53, 92, 400)  -- no problem has more than one of these values
             LIMIT 1
         ''',
@@ -1092,7 +1093,7 @@ queries = {
             WHERE
                 PROBLEM = :plot_id
                 AND EXPERIMENT_NAME = :experiment_name
-                AND TRAINING_SIZE IN (53, 92, 200)  -- no problem has more than one of these values
+                AND TRAINING_SIZE IN (53, 92, 400)  -- no problem has more than one of these values
             LIMIT 1
         ''',
     "final_avg":
@@ -1105,7 +1106,7 @@ queries = {
             WHERE
                 PROBLEM = :plot_id
                 AND TRAINING_SIZE = (CASE WHEN :plot_id = 'queens1' and :series = 100 THEN 92 WHEN :plot_id = 'steinerbaum' AND :series = 100 THEN 53 ELSE :series END)
-                AND EXPERIMENT_NAME = '250_120'
+                AND EXPERIMENT_NAME = 'V1I'
             LIMIT 1
         ''',
     "optimal_gen":
@@ -1117,7 +1118,7 @@ queries = {
             WHERE
                 PROBLEM = :plot_id
                 AND TRAINING_SIZE = :series
-                AND EXPERIMENT_NAME = '750_40x3'
+                AND EXPERIMENT_NAME = 'V1I'
                 AND best_phenotype = (SELECT best_phenotype FROM experimentFinalStat efs WHERE efs.id = es.id)
             ORDER BY
                 gen ASC
@@ -1132,10 +1133,25 @@ queries = {
             FROM experimentFinalStat
             WHERE
                 PROBLEM = :series--:plot_id
-                AND EXPERIMENT_NAME = '250_120'
+                AND EXPERIMENT_NAME = 'V1I'
             GROUP BY 
                 x
             ORDER BY 
+                x
+        ''',
+    "profile_frac":
+        r'''SELECT
+                training_size AS x,
+                SUM(CAST(`:criterion` AS REAL))/COUNT(*) AS y,
+                SUM(CAST(`:criterion` AS REAL))/COUNT(*) - 1.959963985 * SQRT((SUM(CAST(`:criterion` AS REAL))/COUNT(*) * (1.0-SUM(CAST(`:criterion` AS REAL))/COUNT(*)))/CAST(COUNT(*) AS REAL)) AS yMin,
+                SUM(CAST(`:criterion` AS REAL))/COUNT(*) + 1.959963985 * SQRT((SUM(CAST(`:criterion` AS REAL))/COUNT(*) * (1.0-SUM(CAST(`:criterion` AS REAL))/COUNT(*)))/CAST(COUNT(*) AS REAL)) AS yMax
+            FROM experimentFinalStat
+            WHERE
+                PROBLEM = :series
+                AND EXPERIMENT_NAME = 'V1I'
+            GROUP BY
+                x
+            ORDER BY
                 x
         ''',
 }
@@ -1161,12 +1177,12 @@ def main():
     series['tuning1'] += [c + "S" for c in cx]
 
     # tuning pass 2: mt
-    series['tuning2'] += ["S" + m for m in mt]
+    series['tuning2'] += ["V1" + m for m in mt]
 
     # tuning pass 3: ps
     series['tuning3'] += [pop for pop in ps]
 
-    series['tuningall'] = ['SS', 'V1S', 'F2S', 'SI', 'SC', '250_120', '750_40']
+    series['tuningall'] = ['SS', 'V1S', 'F2S', 'V1I', 'V1C', '250_120', '750_40']
 
     # scaling
     series['scaling'] += [100, 200, 300, 400, 500, 600, 700, 800]
@@ -1209,8 +1225,15 @@ def main():
         axis={
             "ymin=": 0,
             "ymax=": 7500,
-            #"ymode=": "log",
+            # "ymode=": "log",
             "ylabel=": "Mean synthesis time (min)"
+        }
+    ))
+
+    p_opt_profile = expand(p_profile, ParameterSet(
+        axis={
+            "ymin=": -0.01,
+            "ylabel=": "Fraction"
         }
     ))
 
@@ -1269,6 +1292,9 @@ def main():
     )
 
     p_table_cmp = expand(p_table, ParameterSet(
+        analyzer={
+            "novalue": -1.0
+        },
         table={
             "heatmap": {
                 "min": 0.0,
@@ -1276,6 +1302,7 @@ def main():
                 "min_color": "red!70!yellow!80!white",
                 "max_color": "green!70!lime",
             },
+            "number_format": "%.3f"
         }
     ))
 
@@ -1350,21 +1377,24 @@ def main():
     p_table_tuning = {
         1: expand(p_table, ParameterSet(
             table={
-                "first_column_title": r"&\multicolumn{3}{c}{\textsc{crossover}}\\Problem"
+                "first_column_title": r"&\multicolumn{3}{c}{\textsc{crossover}}\\Problem",
+                "number_format": "%.3f"
             }
         )),
 
         2: expand(p_table, ParameterSet(
             table={
                 "first_column_title": r"&\multicolumn{3}{c}{\textsc{mutation}}\\Problem",
-                "name_formatter": (lambda name: "S" if name == "V1S" else Statistics.format_name_latex(None, name, ParameterSet()))
+                "name_formatter": (lambda name: "S" if name == "V1S" else Statistics.format_name_latex(None, name, ParameterSet())),
+                "number_format": "%.3f"
             }
         )),
 
         3: expand(p_table, ParameterSet(
             table={
                 "first_column_title": r"&\multicolumn{3}{c}{\textsc{population/gen}}\\Problem",
-                "name_formatter": (lambda name: "500/60" if name == "SS" else Statistics.format_name_latex(None, name, ParameterSet()))
+                "name_formatter": (lambda name: "500/60" if name == "V1I" else Statistics.format_name_latex(None, name, ParameterSet())),
+                "number_format": "%.3f"
             }
         )),
 
@@ -1411,9 +1441,11 @@ def main():
                       problems, "generational_tree_stats"))
     plots.append(Plot(db, "profile", {"criterion": "test_fitness"}, p_profile, [""], problems_scaling))
     plots.append(Plot(db, "profile", {"criterion": "total_time_min"}, p_time_profile, [""], problems_scaling))
+    plots.append(Plot(db, "profile_frac", {"criterion": "optimal_Value_match=1"}, p_opt_profile, [""], problems_scaling, "profile_frac_optimal_value_match"))
+    plots.append(Plot(db, "profile_frac", {"criterion": "optimal_Solution_match=1"}, p_opt_profile, [""], problems_scaling, "profile_frac_optimal_solution_match"))
 
-    # plots.append(Table(db, "final_avg_fixed", {"criterion": "test_fitness"}, p_table_cmp, problems, ["GECS", "OCCALS", "ESOCCS"]))
-    # plots.append(Table(db, "final_frac_fixed", {"criterion": "optimal_`:series`_match=1", "experiment_name": "OCCALS"}, p_table_opt, problems, ["Value", "Solution"], "final_frac_fixed_optimal_occals"))
+    plots.append(Table(db, "final_avg_fixed", {"criterion": "test_fitness"}, p_table_cmp, problems, ["GECS", "OCCALS", "ESOCCS"]))
+    plots.append(Table(db, "final_frac_fixed", {"criterion": "optimal_`:series`_match=1", "experiment_name": "V1I"}, p_table_opt, problems, ["Value", "Solution"], "final_frac_fixed_optimal"))
 
     db.close()
     runner = Runner(plots)

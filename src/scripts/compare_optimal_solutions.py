@@ -45,7 +45,7 @@ def get_optimal_solution(model, problem):
         return zpl_get_optimal_solution(model)
 
 
-def compare_optimal_solutions(opt: dict, ground_truth: dict, ground_truth_interpreter: Interpreter) -> bool:
+def compare_optimal_solutions(opt: dict, ground_truth: dict, ground_truth_interpreter: Interpreter):
     if opt is None:
         return False, False
 
@@ -71,7 +71,9 @@ def compare_optimal_solutions(opt: dict, ground_truth: dict, ground_truth_interp
 
 def main():
     LP_interpreter.gurobi_env.setParam(GRB.Param.Threads, 2)
-    problems = ["chvatal_diet", "facility_location", "queens1", "queens2", "queens3", "queens4", "queens5", "steinerbaum", "tsp"]
+    problems = ["acube32", "acube52", "asimplex32", "asimplex52",
+                "gdiet", "gfacility", "gnetflow", "gsudoku", "gworkforce1",
+                "zdiet", "zfacility", "zqueens1", "zqueens2", "zqueens3", "zqueens4", "zqueens5", "zsteinerbaum", "ztsp"]
     training_size = {p: 400 for p in problems}
     training_size["queens1"] = 92
     training_size["steinerbaum"] = 53
@@ -81,7 +83,7 @@ def main():
 
     db_filename = "../../results/results.sqlite"
 
-    experiment_name = "OCCALS"
+    experiment_name = "V1I"
 
     db_conn = sqlite3.connect(db_filename)
     cursor = db_conn.cursor()
@@ -95,7 +97,7 @@ def main():
     cursor.execute(r'''SELECT g.id, problem, best_phenotype 
                     FROM experiments e JOIN parameters p on e.id = p.parent JOIN generations g on e.id = g.parent 
                     WHERE p.EXPERIMENT_NAME=? --AND p.TRAINING_SIZE IN (53, 92, 400) 
-                    AND g.end=1 --AND best_phenotype NOT LIKE "Subject To%"''', (experiment_name, ))
+                    AND g.end=1 AND best_phenotype NOT LIKE 'Subject To%' ''', (experiment_name, ))
 
     for row in cursor.fetchall():
         opt = get_optimal_solution(row[2], row[1])

@@ -54,7 +54,7 @@ class SlurmPool:
         sbatch = open("./slurm/%s.sh" % script_filename, "w")
         sbatch.write("#!/bin/bash\n")
         sbatch.write("#SBATCH -p lab-ci,lab-43,lab-44,lab-45\n")
-        sbatch.write("#SBATCH -c 1 --mem=1900\n")
+        sbatch.write("#SBATCH -c 1 --mem=2600\n")
         sbatch.write("#SBATCH -t 3-23:55:00\n")
         sbatch.write("export GRB_LICENSE_FILE=~/gurobi-$(hostname).lic\n")
         sbatch.write("date\n")
@@ -81,7 +81,7 @@ class CompleteDetector:
 
         cursor = self.db.cursor()
         try:
-            cursor.execute("CREATE INDEX IF NOT EXISTS parametersParentNameProblemRandomSeedTrainingSize ON parameters(parent, EXPERIMENT_NAME, PROBLEM, RANDOM_SEED, TRAINING_SIZE)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS parametersExperimentNameProblemRandomSeedTrainingSize ON parameters(EXPERIMENT_NAME, PROBLEM, RANDOM_SEED, TRAINING_SIZE)")
 
         except sqlite3.OperationalError as e:
             self.no_db = True
@@ -125,14 +125,14 @@ def main():
     # tuning pass 1 & 2: cx * mt
     # if c+m in {"SS", "F2S", "V1S", "SI", "SC"}
     settings['tuning'].update(
-        {c + m: r"%s %s --population_size 500 --generations 60 --tournament_size 5" % (cc, mc) for c, cc in cx.items() for m, mc in mt.items() if c + m in {"SS", "F2S", "V1S", "SI", "SC"}})
+        {c + m: r"%s %s --population_size 500 --generations 60 --tournament_size 5" % (cc, mc) for c, cc in cx.items() for m, mc in mt.items() if c + m in {"SS", "F2S", "V1S", "V1I", "V1C"}})
     problems['tuning'].update({p: "--grammar ZIMPL-dedicated-%s.bnf --extra_parameters PROBLEM='%s', TRAINING_SIZE=%d" % (p, p, min(400, max(training_sizes[p]))) for p in prob})
 
     # tuning pass 2: ps
-    settings['tuning'].update({"%s" % pop: r"%s --crossover subtree --mutation subtree --tournament_size 5" % pc for pop, pc in ps.items()})
+    settings['tuning'].update({"%s" % pop: r"%s --crossover variable_onepoint --mutation int_flip_per_ind --tournament_size 5" % pc for pop, pc in ps.items()})
 
     # scaling
-    settings['scaling'].update({"250_120": r"--population_size 250 --generations 120 --tournament_size 5 --crossover subtree --mutation subtree"})
+    settings['scaling'].update({"V1I": r"--population_size 500 --generations 60 --tournament_size 5 --crossover variable_onepoint --mutation int_flip_per_ind"})
     problems['scaling'].update(
        {p + "_" + str(t): "--grammar ZIMPL-dedicated-%s.bnf --extra_parameters PROBLEM='%s', TRAINING_SIZE=%d" % (p, p, t) for p in prob for t in training_sizes[p] if t != min(400, max(training_sizes[p]))})
 

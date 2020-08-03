@@ -52,12 +52,14 @@ def get_phenotype(problem, lp_format: str):
 
 
 def main():
-    problems = ["chvatal_diet", "facility_location", "queens1", "queens2", "queens3", "queens4", "queens5", "steinerbaum", "tsp"]
+    problems = ["acube32", "acube52", "asimplex32", "asimplex52",
+                "gdiet", "gfacility",
+                "zdiet", "zqueens1", "zsteinerbaum"]
     training_size = {p: 400 for p in problems}
-    training_size["queens1"] = 92
-    training_size["steinerbaum"] = 53
+    training_size["zqueens1"] = 92
+    training_size["zsteinerbaum"] = 53
 
-    source_db_filename = "../../results/esoccs.sqlite"
+    source_db_filename = "../../results/ESOCCS_for_GECS.sqlite"
     destination_db_filename = "../../results/results.sqlite"
 
     experiment_name = "ESOCCS"

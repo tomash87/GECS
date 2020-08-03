@@ -204,6 +204,10 @@ class LP_interpreter:
 
     def optimize(self) -> dict:
         model = read(self.lp_filename, LP_interpreter.gurobi_env)
+
+        gurobi_vars = [model.getVarByName(v) for v in self.vars if model.getVarByName(v) is not None]
+        milp = any(v.VType in "BI" for v in gurobi_vars)
+
         model.optimize()
 
         if model.Status in Interpreter.feasible_status:
@@ -211,7 +215,7 @@ class LP_interpreter:
             solution = {"": model.ObjVal}
             for j in range(len(gurobi_vars)):
                 v = gurobi_vars[j]
-                solution[v.varName] = v.Xn
+                solution[v.varName] = v.Xn if milp else v.X
             return solution
         else:
             return None
@@ -419,7 +423,7 @@ class LP_interpreter:
             X = X[:i]
 
         if seed is not None:
-            np.random.set_state(random_state) # return previous state of the random generator
+            np.random.set_state(random_state)  # return previous state of the random generator
 
         # print("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", end="")
         return X
@@ -441,7 +445,11 @@ class LP_interpreter:
             # presence of an unbounded ray that allows the objective to improve without limit. It
             # says nothing about whether the model has a feasible solution. If you require information
             # on feasibility, you should set the objective to zero and reoptimize.
-            unbounded_ray = [v.UnbdRay for v in gurobi_vars]
+            try:
+                unbounded_ray = [v.UnbdRay for v in gurobi_vars]
+            except AttributeError:
+                unbounded_ray = [0.0 for _ in gurobi_vars]
+
             model.Params.InfUnbdInfo = 0
             model.setObjective(0, GRB.MINIMIZE)
             model.optimize()
