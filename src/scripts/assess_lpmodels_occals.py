@@ -57,14 +57,14 @@ def main():
     training_size["zqueens1"] = 92
     training_size["zsteinerbaum"] = 53
 
-    source_db_filename = "../../results/OCCALS_for_GECS.sqlite"
+    source_db_filename = "../../results/20210401 OCCALS for GECS.sqlite"
     destination_db_filename = "../../results/results.sqlite"
 
     experiment_name = "OCCALS"
 
     source_db_conn = sqlite3.connect(source_db_filename)
     source_cursor = source_db_conn.cursor()
-    source_cursor.execute("SELECT inputFile, trainingDataSize, seed, LPFormat FROM experiments WHERE error IS NULL")
+    source_cursor.execute("SELECT inputFile, trainingDataSize, seed, LPFormat, MinK, RandomConstraintsToGenerate FROM experiments WHERE error IS NULL")
 
     destination_db = Database(destination_db_filename)
 
@@ -75,7 +75,7 @@ def main():
 
         exp = destination_db.new_experiment()
         params = exp.new_child_data_set("parameters")
-        params["EXPERIMENT_NAME"] = experiment_name
+        params["EXPERIMENT_NAME"] = "%s_%d_%d" % (experiment_name, row[4], row[5])
         params["PROBLEM"] = problem
         params["TRAINING_SIZE"] = training_size[problem]
         params["RANDOM_SEED"] = row[2]

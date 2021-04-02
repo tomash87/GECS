@@ -454,7 +454,9 @@ class Statistics:
                "SI": "I",
                "SC": "C",
                "V1I": "I",
-               "V1C": "C"}
+               "V1C": "C",
+               "OCCALS_1_500": "OCCALS:~\cite{Sroka:2018:OCA:3205455.3205480}",
+               "ESOCCS": "ESOCCS:~\cite{Pawlak:2018:SWEVO,Pawlak:2018:PIE:3205455.3205504}"}
 
         if name in map:
             return map[name]
@@ -1302,7 +1304,7 @@ def main():
                 "min_color": "red!70!yellow!80!white",
                 "max_color": "green!70!lime",
             },
-            "number_format": "%.3f"
+            "number_format": "%.3f",
         }
     ))
 
@@ -1444,7 +1446,7 @@ def main():
     plots.append(Plot(db, "profile_frac", {"criterion": "optimal_Value_match=1"}, p_opt_profile, [""], problems_scaling, "profile_frac_optimal_value_match"))
     plots.append(Plot(db, "profile_frac", {"criterion": "optimal_Solution_match=1"}, p_opt_profile, [""], problems_scaling, "profile_frac_optimal_solution_match"))
 
-    plots.append(Table(db, "final_avg_fixed", {"criterion": "test_fitness"}, p_table_cmp, problems, ["GECS", "OCCALS", "ESOCCS"]))
+    plots.append(Table(db, "final_avg_fixed", {"criterion": "test_fitness"}, p_table_cmp, problems, ["GECS", "OCCALS_1_500", "ESOCCS"]))
     plots.append(Table(db, "final_frac_fixed", {"criterion": "optimal_`:series`_match=1", "experiment_name": "V1I"}, p_table_opt, problems, ["Value", "Solution"], "final_frac_fixed_optimal"))
 
     db.close()
