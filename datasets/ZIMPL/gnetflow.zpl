@@ -52,7 +52,7 @@ param inflow[COMMODITIES * NODES] :=
     default 0;
 
 # Create variables
-var flow[COMMODITIES * NODES * NODES] real >= 0;
+var flow[COMMODITIES * NODES * NODES] integer >= 0;
 
 minimize total_flow:
     sum <c, n1, n2> in COMMODITIES * NODES * NODES: cost[c, n1, n2] * flow[c, n1, n2];

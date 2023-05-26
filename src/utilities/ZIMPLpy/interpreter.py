@@ -94,15 +94,16 @@ class Interpreter:
                 r = pd.DataFrame(r.reshape((n, 1)), columns=[v])
                 new_X = pd.concat([new_X, r], axis=1)
 
+            to_append = new_X
             if class_column or positive_only:
                 classes = self.program.constraints(new_X)
                 if class_column:
                     new_X["class"] = classes
                 if positive_only:
-                    positive = new_X[classes]
-                    if positive.shape[0] > 0:
-                        X = X.append(positive[:min(n - X.shape[0], positive.shape[0])], ignore_index=True)
-                        print("Found %d positives so far..." % X.shape[0])
+                    to_append = new_X[classes]
+            if to_append.shape[0] > 0:
+                X = pd.concat([X, to_append[:min(n - X.shape[0], to_append.shape[0])]], ignore_index=True)
+                print("Found %d solutions so far..." % X.shape[0])
             else:
                 return new_X
         assert X.shape[0] == n
@@ -332,8 +333,8 @@ class LP_interpreter:
         distance_diff_constraints = [None] * len_vars
         distance_delta_constraints = [None] * len_vars
         sum_delta_variables = quicksum(delta_variables)
-        dup_matrix = np.empty((n, len_vars), dtype=np.bool)
-        dup_vector = np.empty(n, dtype=np.bool)
+        dup_matrix = np.empty((n, len_vars), dtype=np.bool_)
+        dup_vector = np.empty(n, dtype=np.bool_)
 
         i = 0
         while i < n and budget > 0:
@@ -414,7 +415,7 @@ class LP_interpreter:
                 fails = 0
                 Xv[i] = random_point
                 source_point[:] = random_point
-                # print("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\bProgress: %d/%d" % (i, n), end="")
+                print("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\bProgress: %d/%d" % (i, n), end="")
                 i += 1
 
         if i < n:
@@ -425,7 +426,7 @@ class LP_interpreter:
         if seed is not None:
             np.random.set_state(random_state)  # return previous state of the random generator
 
-        # print("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", end="")
+        print("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", end="")
         return X
 
     @staticmethod

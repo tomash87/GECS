@@ -20,7 +20,7 @@ def main():
                 print("Calculating validation set...")
                 generate(interpreter, name_noext + "_validation.csv", 5000, True)
                 # print("Calculating validation set 2...")
-                # generate(interpreter, name_noext + "_validation2.csv", 500000, False)
+                # generate(interpreter, name_noext + "_validation2.csv", 500000, False, True)
                 print("Generating grammar...")
                 with open("%s/../../grammars/ZIMPL-dedicated-%s.bnf" % (base_dir, os.path.basename(name_noext)), "wt") as f:
                     f.write(interpreter.generate_grammar())
@@ -29,7 +29,7 @@ def main():
 def generate(interpreter, filename, n, positive_only=True, class_column=False):
     if not os.path.exists(filename):
         if positive_only and not class_column:
-            if "zqueens1" in filename or "zsteinerbaum" in filename or "zdiet" in filename:
+            if "zqueens1" in filename or "zsteinerbaum" in filename or "zdiet" in filename or "gnetflow" in filename:
                 data = interpreter.sample_positive(n, method="bc")
             else:
                 data = interpreter.sample_positive(n, method="har", budget=100000000)  # har
